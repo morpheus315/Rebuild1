@@ -21,9 +21,6 @@
     <ClCompile Include="Button.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Game.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="chess-game.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -31,6 +28,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="LanP2PNode.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Game.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

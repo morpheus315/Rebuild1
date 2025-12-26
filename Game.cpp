@@ -1,17 +1,169 @@
 #include "Game.h"
 #include "LanP2PNode.h"
 #include "Button.h"
+#include "GameClient.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstring>
 #include <limits>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <raylib.h>
 #include <raymath.h>
 #include <rlgl.h>
+
+bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
+{
+    const int screenWidth = 920;
+    const int screenHeight = 720;
+
+    InitWindow(screenWidth, screenHeight, "Seek Peer");
+    SetTargetFPS(60);
+
+    Button discoverBtn(Rectangle{20.0f, 20.0f, 180.0f, 40.0f}, "Discover (10s)");
+    Button requestBtn(Rectangle{210.0f, 20.0f, 180.0f, 40.0f}, "Request Match");
+    Button acceptBtn(Rectangle{400.0f, 20.0f, 180.0f, 40.0f}, "Accept");
+    Button rejectBtn(Rectangle{590.0f, 20.0f, 180.0f, 40.0f}, "Reject");
+    Button exitBtn(Rectangle{780.0f, 20.0f, 120.0f, 40.0f}, "Exit");
+
+    int selectedPeer = -1;
+    int selectedPending = -1;
+    std::string status = "Idle";
+
+    bool discoveryActive = false;
+    double discoveryEndTime = 0.0;
+
+    while (!WindowShouldClose())
+    {
+        if (client.isInMatch())
+            break;
+
+        if (discoveryActive && GetTime() >= discoveryEndTime)
+        {
+            node.stopUdpListen();
+            discoveryActive = false;
+            status = "Discovery stopped";
+        }
+
+        const Vector2 mouse = GetMousePosition();
+        auto peers = client.getAvailablePeers();
+        auto pending = client.getPendingRequestsSnapshot();
+        if (selectedPeer >= static_cast<int>(peers.size()))
+            selectedPeer = -1;
+        if (selectedPending >= static_cast<int>(pending.size()))
+            selectedPending = -1;
+
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+
+        DrawText("Match Panel", 20, 70, 24, DARKGRAY);
+        DrawText(TextFormat("Local ID:%s  TCP:%d  Discovery:%d", node.getNodeId().c_str(), node.getTcpPort(), node.getDiscoveryPort()),
+                 20, screenHeight - 70, 18, DARKGRAY);
+        DrawText(status.c_str(), 20, screenHeight - 40, 20, BLACK);
+
+        if (discoverBtn.Draw())
+        {
+            if (!discoveryActive)
+            {
+                node.startUdpListen();
+                discoveryActive = true;
+                discoveryEndTime = GetTime() + 10.0;
+                status = "Discovering (10s)";
+            }
+        }
+
+        if (requestBtn.Draw())
+        {
+            if (selectedPeer >= 0 && selectedPeer < static_cast<int>(peers.size()))
+                status = client.requestMatch(peers[static_cast<size_t>(selectedPeer)]) ? "Match request sent" : "Match request failed";
+            else
+                status = "Select a peer";
+        }
+
+        if (acceptBtn.Draw())
+        {
+            if (selectedPending >= 0 && selectedPending < static_cast<int>(pending.size()))
+                status = client.respondToPendingRequest(pending[static_cast<size_t>(selectedPending)], true) ? "Request accepted" : "Request expired";
+            else
+                status = "No request selected";
+        }
+
+        if (rejectBtn.Draw())
+        {
+            if (selectedPending >= 0 && selectedPending < static_cast<int>(pending.size()))
+                status = client.respondToPendingRequest(pending[static_cast<size_t>(selectedPending)], false) ? "Request rejected" : "Request expired";
+            else
+                status = "No request selected";
+        }
+
+        if (exitBtn.Draw())
+        {
+            if (discoveryActive)
+            {
+                node.stopUdpListen();
+                discoveryActive = false;
+            }
+            CloseWindow();
+            return false;
+        }
+
+        DrawText("Available peers", 20, 110, 20, BLACK);
+        float peerY = 140.0f;
+        for (size_t i = 0; i < peers.size(); ++i)
+        {
+            Rectangle item{20.0f, peerY, static_cast<float>(screenWidth - 40), 32.0f};
+            bool hover = CheckCollisionPointRec(mouse, item);
+            Color fill = (selectedPeer == static_cast<int>(i)) ? Fade(GREEN, 0.35f) : Fade(LIGHTGRAY, 0.35f);
+            if (hover)
+                fill = Fade(ORANGE, 0.35f);
+            DrawRectangleRec(item, fill);
+            DrawRectangleLinesEx(item, 1.0f, DARKGRAY);
+            std::string label = std::to_string(i + 1) + ". " + (peers[i].name.empty() ? peers[i].id : peers[i].name) +
+                                 " (" + peers[i].ip + ":" + std::to_string(peers[i].tcpPort) + ")";
+            DrawText(label.c_str(), static_cast<int>(item.x) + 6, static_cast<int>(item.y) + 6, 18, BLACK);
+            if (hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+                selectedPeer = static_cast<int>(i);
+            peerY += 36.0f;
+        }
+
+        float pendingStart = peerY + 20.0f;
+        if (pendingStart < 320.0f)
+            pendingStart = 320.0f;
+        DrawText("Pending requests", 20, static_cast<int>(pendingStart), 20, BLACK);
+        float pendingY = pendingStart + 30.0f;
+        for (size_t i = 0; i < pending.size(); ++i)
+        {
+            Rectangle item{20.0f, pendingY, static_cast<float>(screenWidth - 40), 32.0f};
+            bool hover = CheckCollisionPointRec(mouse, item);
+            Color fill = (selectedPending == static_cast<int>(i)) ? Fade(SKYBLUE, 0.35f) : Fade(LIGHTGRAY, 0.35f);
+            if (hover)
+                fill = Fade(ORANGE, 0.35f);
+            DrawRectangleRec(item, fill);
+            DrawRectangleLinesEx(item, 1.0f, DARKGRAY);
+            std::string label = std::to_string(i + 1) + ". " + (pending[i].peer.name.empty() ? pending[i].peer.id : pending[i].peer.name) +
+                                 " (" + pending[i].ip + ":" + std::to_string(pending[i].port) + ") id=" + pending[i].matchId.substr(0, 6);
+            DrawText(label.c_str(), static_cast<int>(item.x) + 6, static_cast<int>(item.y) + 6, 18, BLACK);
+            if (hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+                selectedPending = static_cast<int>(i);
+            pendingY += 36.0f;
+        }
+
+        EndDrawing();
+    }
+
+    if (discoveryActive)
+    {
+        node.stopUdpListen();
+        discoveryActive = false;
+    }
+
+    CloseWindow();
+    return client.isInMatch();
+}
 
 namespace
 {

@@ -33,6 +33,16 @@ class Client
 		std::string getMatchId() const;//获取匹配ID
 		lanp2p::PeerInfo getMatchPeer() const;//获取对端peerinfo
 
+		struct PendingRequestInfo
+		{
+			std::string matchId;
+			lanp2p::PeerInfo peer;
+			std::string ip;
+			uint16_t port{ 0 };
+		};
+		std::vector<PendingRequestInfo> getPendingRequestsSnapshot();
+		bool respondToPendingRequest(const PendingRequestInfo &req, bool accept);
+
 	private:
 		lanp2p::LanP2PNode &_node;//局域网通信节点
 

@@ -87,26 +87,26 @@ bool Client::requestMatch(const lanp2p::PeerInfo &peer)
 		std::lock_guard<std::mutex> lk(_matchMutex);
 		if (_match.inMatch)
 		{
-			std::cout << "已经在对局中" << std::endl;
+			std::cout << "Already in a match" << std::endl;
 			return false;
 		}
 	}
 
 	// 生成随机匹配ID并发送请求
 	std::string mid = lanp2p::LanP2PNode::generateMatchId();
-	std::cout << "[Client] 发送请求： " << peer.ip << ":" << peer.tcpPort
+	std::cout << "[Client] Sending request to " << peer.ip << ":" << peer.tcpPort
 	          << ", matchId=" << mid << ", fromId=" << _node.getNodeId() << std::endl;
 	if (_node.sendMatchRequest(peer.ip, peer.tcpPort, mid))
 	{
-		std::cout << "发送请求："
+		std::cout << "Sent match request to "
 		          << (peer.name.empty() ? peer.id : peer.name)
-		          << "，matchId=" << mid
+		          << ", matchId=" << mid
 		          << std::endl;
 		return true;
 	}
 	else
 	{
-		std::cout << "发送失败" << std::endl;
+		std::cout << "Failed to send" << std::endl;
 		return false;
 	}
 }
@@ -129,16 +129,16 @@ void Client::handlePendingRequests()
 		}
 		if (!hasOne)
 		{
-			std::cout << "没有待处理的请求" << std::endl;
+			std::cout << "No pending requests" << std::endl;
 			break;
 		}
-		std::cout << "\n====== 匹配请求 ======\n";
+		std::cout << "\n====== Match Request ======\n";
 		std::cout << "from: "
 		          << (pr.peer.name.empty() ? pr.peer.id : pr.peer.name)
 		          << " (id=" << pr.peer.id << ") "
 		          << pr.ip << ":" << pr.port
 		          << " matchId=" << pr.matchId
-		          << "\n同意? (y/n): ";
+		          << "\nAccept? (y/n): ";
 		std::string resp;
 		if (!std::getline(std::cin, resp))
 			resp.clear();
@@ -155,11 +155,11 @@ void Client::handlePendingRequests()
 			_iAmMatchInitiator = false;
 			//注册心跳检测
 			_node.markMatchActive(pr.ip, pr.port, pr.peer.id, pr.matchId);
-			std::cout << "对方同意，游戏开始" << std::endl;
+			std::cout << "Accepted. Match starts." << std::endl;
 		}
 		else
 		{
-			std::cout << "对方拒绝" << std::endl;
+			std::cout << "Rejected" << std::endl;
 		}
 	}
 }
@@ -178,20 +178,20 @@ void Client::startGame()
 			return;
 	}
 
-	std::cout << "\n\n=====游戏开始=====\n";
+	std::cout << "\n\n===== Game Start =====\n";
 
 	lanp2p::PeerInfo opponent;
 	{
 		std::lock_guard<std::mutex> lk(_matchMutex);
 		opponent = _match.peer;
 	}
-	std::cout << "你的对手：" << (opponent.name.empty() ? opponent.id : opponent.name) << std::endl;
+	std::cout << "Your opponent: " << (opponent.name.empty() ? opponent.id : opponent.name) << std::endl;
 
 	initGameState();
 	gameLoop();
 	cleanupGameState();
 
-	std::cout << "=====游戏结束=====\n\n";
+	std::cout << "===== Game Over =====\n\n";
 
 	std::lock_guard<std::mutex> lk(_matchMutex);
 	_match = MatchState{}; // 重置对局状态
@@ -217,11 +217,11 @@ void Client::endMatch()
 
 	if (wasInMatch)
 	{
-		std::cout << "[Client] 发送INT信息到" << peer.ip << ":" << peer.tcpPort
+		std::cout << "[Client] Sending interrupt signal to " << peer.ip << ":" << peer.tcpPort
 		          << ", matchId=" << matchId << std::endl;
 		_node.interruptMatch(peer.ip, peer.tcpPort, matchId);
 		_gameRunning = false; // 确保游戏循环退出
-		std::cout << "游戏结束（主动打断）" << std::endl;
+		std::cout << "Game over (interrupted)" << std::endl;
 	}
 }
 
@@ -235,6 +235,56 @@ lanp2p::PeerInfo Client::getMatchPeer() const
 {
 	std::lock_guard<std::mutex> lk(_matchMutex);
 	return _match.peer;
+}
+
+std::vector<Client::PendingRequestInfo> Client::getPendingRequestsSnapshot()
+{
+	std::vector<PendingRequestInfo> out;
+	std::lock_guard<std::mutex> lk(_pendingMutex);
+	for (const auto &pr : _pendingQueue)
+	{
+		PendingRequestInfo info;
+		info.matchId = pr.matchId;
+		info.peer = pr.peer;
+		info.ip = pr.ip;
+		info.port = pr.port;
+		out.push_back(info);
+	}
+	return out;
+}
+
+bool Client::respondToPendingRequest(const PendingRequestInfo &req, bool accept)
+{
+	PendingRequest target;
+	bool found = false;
+	{
+		std::lock_guard<std::mutex> lk(_pendingMutex);
+		for (auto it = _pendingQueue.begin(); it != _pendingQueue.end(); ++it)
+		{
+			if (it->matchId == req.matchId && it->peer.id == req.peer.id)
+			{
+				target = *it;
+				_pendingQueue.erase(it);
+				found = true;
+				break;
+			}
+		}
+	}
+
+	if (!found)
+		return false;
+
+	_node.respondToMatch(target.ip, target.port, target.matchId, accept);
+	if (accept)
+	{
+		std::lock_guard<std::mutex> lk(_matchMutex);
+		_match.inMatch = true;
+		_match.peer = target.peer;
+		_match.matchId = target.matchId;
+		_iAmMatchInitiator = false;
+		_node.markMatchActive(target.ip, target.port, target.peer.id, target.matchId);
+	}
+	return true;
 }
 
 
@@ -260,15 +310,15 @@ void Client::onMatchRequest(const lanp2p::PeerInfo &p, const std::string &matchI
 		std::lock_guard<std::mutex> lk(_pendingMutex);
 		_pendingQueue.push_back(std::move(pr));
 	}
-	std::cout << "\n[请求]来自："
+	std::cout << "\n[Request] From "
 	          << (p.name.empty() ? p.id : p.name)
-	          << ".在主界面选择处理选项" << std::endl;
+	          << ". Handle it in the main panel." << std::endl;
 }
 
 void Client::onMatchResponse(const lanp2p::PeerInfo &p, bool accepted, const std::string &matchId)
 {
 	std::cout << "\n";
-	std::cout << "[回复]来自："
+	std::cout << "[Response] From "
 	          << (p.name.empty() ? p.id : p.name)
 	          << " match=" << matchId
 	          << " accepted=" << (accepted ? "true" : "false") << std::endl;
@@ -285,7 +335,7 @@ void Client::onMatchResponse(const lanp2p::PeerInfo &p, bool accepted, const std
 
 void Client::onMatchInterrupted(const lanp2p::PeerInfo &p, const std::string &matchId)
 {
-	std::cout << "[打断] 来自："
+	std::cout << "[Interrupted] From "
 	          << (p.name.empty() ? p.id : p.name)
 	          << " match=" << matchId << std::endl;
 
@@ -371,7 +421,7 @@ void Client::initGameState()
 	cleanupGameState();
 	if (!OnlineInitChessBoard(&_chessBoard, _boardSize))
 	{
-		std::cout << "FATAL:无法初始化棋盘" << std::endl;
+		std::cout << "FATAL: failed to init board" << std::endl;
 		endMatch();
 		return;
 	}
@@ -403,16 +453,16 @@ void Client::initGameState()
 	_gameRunning = true;
 	_opponentMoved = false;
 
-	std::cout << "棋盘初始化完成，你是玩家" << _myPlayer
-	          << " (" << (_iAmMatchInitiator ? "发起者" : "应答者")
+	std::cout << "Board initialized, you are player " << _myPlayer
+	          << " (" << (_iAmMatchInitiator ? "initiator" : "responder")
 	          << ", matchId: " << matchId.substr(0, 4) << "...)." << std::endl;
 	if (_myTurn)
 	{
-		std::cout << "你的回合" << std::endl;
+		std::cout << "Your turn" << std::endl;
 	}
 	else
 	{
-		std::cout << "等待对面下棋" << std::endl;
+		std::cout << "Waiting for opponent move" << std::endl;
 	}
 }
 
@@ -446,16 +496,16 @@ void Client::gameLoop()
 				_node.sendGameMove(opponent.ip, opponent.tcpPort, coords[0], coords[1], coords[2]);
 				if (CheckWin(_boardSize, _chessBoard, coords, _myPlayer))
 				{
-					std::cout << "你赢了" << std::endl;
+					std::cout << "You win" << std::endl;
 					_gameRunning = false;
 					break;
 				}
 				_myTurn = false;
-				std::cout << "等待对手下棋" << std::endl;
+				std::cout << "Waiting for opponent move" << std::endl;
 			}
 			else
 			{
-				std::cout << "无效输入" << std::endl;
+				std::cout << "Invalid input" << std::endl;
 			}
 		}
 		else // 轮到对手
@@ -469,7 +519,7 @@ void Client::gameLoop()
 					UpdateBoardState(_boardSize, _chessBoard, _opponentMove, opponentPlayer);
 					if (CheckWin(_boardSize, _chessBoard, _opponentMove, opponentPlayer))
 					{
-						std::cout << "你个废物" << std::endl;
+						std::cout << "You lost" << std::endl;
 						_gameRunning = false;
 					}
 					_opponentMoved = false;
@@ -479,7 +529,7 @@ void Client::gameLoop()
 			if (moved)
 			{
 				_myTurn = true;
-				std::cout << "你的回合" << std::endl;
+				std::cout << "Your turn" << std::endl;
 			}
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));

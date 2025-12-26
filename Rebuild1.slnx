@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="Rebuild1.vcxproj" />
+  <Project Path="Rebuild1.vcxproj" Id="84f2964b-1394-4827-8ef3-8a99f147e4ef" />
 </Solution>
