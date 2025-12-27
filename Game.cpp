@@ -18,14 +18,11 @@
 
 bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
 {
-    const int screenWidth = 920;
-    const int screenHeight = 720;
-
-    Button discoverBtn(Rectangle{20.0f, 20.0f, 180.0f, 48.0f}, "Discover (10s)", DARKGRAY, GRAY, LIGHTGRAY, RAYWHITE, 24);
-    Button requestBtn(Rectangle{210.0f, 20.0f, 180.0f, 48.0f}, "Request Match", DARKGRAY, GRAY, LIGHTGRAY, RAYWHITE, 24);
-    Button acceptBtn(Rectangle{400.0f, 20.0f, 180.0f, 48.0f}, "Accept", DARKGRAY, GRAY, LIGHTGRAY, RAYWHITE, 24);
-    Button rejectBtn(Rectangle{590.0f, 20.0f, 180.0f, 48.0f}, "Reject", DARKGRAY, GRAY, LIGHTGRAY, RAYWHITE, 24);
-    Button exitBtn(Rectangle{780.0f, 20.0f, 120.0f, 48.0f}, "Exit", DARKGRAY, GRAY, LIGHTGRAY, RAYWHITE, 24);
+    Button discoverBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Discover (10s)");
+    Button requestBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Request Match");
+    Button acceptBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Accept");
+    Button rejectBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Reject");
+    Button exitBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Exit");
 
     int selectedPeer = -1;
     int selectedPending = -1;
@@ -36,6 +33,27 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
 
     while (!WindowShouldClose())
     {
+        const int screenWidth = GetScreenWidth();
+        const int screenHeight = GetScreenHeight();
+        const float margin = std::max(16.0f, screenWidth * 0.02f);
+        const float spacing = std::max(8.0f, screenWidth * 0.01f);
+        float btnHeight = std::max(44.0f, screenHeight * 0.065f);
+        float btnWidth = (screenWidth - margin * 2.0f - spacing * 4.0f) / 5.0f;
+        btnWidth = std::max(140.0f, btnWidth);
+        const int btnFontSize = static_cast<int>(std::max(18.0f, btnHeight * 0.5f));
+        const float topY = margin;
+
+        discoverBtn.SetBounds(Rectangle{margin, topY, btnWidth, btnHeight});
+        requestBtn.SetBounds(Rectangle{margin + (btnWidth + spacing) * 1.0f, topY, btnWidth, btnHeight});
+        acceptBtn.SetBounds(Rectangle{margin + (btnWidth + spacing) * 2.0f, topY, btnWidth, btnHeight});
+        rejectBtn.SetBounds(Rectangle{margin + (btnWidth + spacing) * 3.0f, topY, btnWidth, btnHeight});
+        exitBtn.SetBounds(Rectangle{margin + (btnWidth + spacing) * 4.0f, topY, btnWidth, btnHeight});
+        discoverBtn.SetFontSize(btnFontSize);
+        requestBtn.SetFontSize(btnFontSize);
+        acceptBtn.SetFontSize(btnFontSize);
+        rejectBtn.SetFontSize(btnFontSize);
+        exitBtn.SetFontSize(btnFontSize);
+
         if (client.isInMatch())
             break;
 
@@ -57,10 +75,11 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        DrawText("Match Panel", 20, 80, 28, DARKGRAY);
+        const float headerY = topY + btnHeight + margin;
+        DrawText("Match Panel", static_cast<int>(margin), static_cast<int>(headerY), 28, DARKGRAY);
         DrawText(TextFormat("Local ID:%s  TCP:%d  Discovery:%d", node.getNodeId().c_str(), node.getTcpPort(), node.getDiscoveryPort()),
-                 20, screenHeight - 70, 22, DARKGRAY);
-        DrawText(status.c_str(), 20, screenHeight - 40, 24, BLACK);
+                 static_cast<int>(margin), screenHeight - 70, 22, DARKGRAY);
+        DrawText(status.c_str(), static_cast<int>(margin), screenHeight - 40, 24, BLACK);
 
         if (discoverBtn.Draw())
         {
@@ -107,11 +126,11 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
             return false;
         }
 
-        DrawText("Available peers", 20, 120, 24, BLACK);
+        DrawText("Available peers", static_cast<int>(margin), 120, 24, BLACK);
         float peerY = 152.0f;
         for (size_t i = 0; i < peers.size(); ++i)
         {
-            Rectangle item{20.0f, peerY, static_cast<float>(screenWidth - 40), 40.0f};
+            Rectangle item{margin, peerY, static_cast<float>(screenWidth - margin * 2.0f), 40.0f};
             bool hover = CheckCollisionPointRec(mouse, item);
             Color fill = (selectedPeer == static_cast<int>(i)) ? Fade(GREEN, 0.35f) : Fade(LIGHTGRAY, 0.35f);
             if (hover)
@@ -129,11 +148,11 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
         float pendingStart = peerY + 24.0f;
         if (pendingStart < 340.0f)
             pendingStart = 340.0f;
-        DrawText("Pending requests", 20, static_cast<int>(pendingStart), 24, BLACK);
+        DrawText("Pending requests", static_cast<int>(margin), static_cast<int>(pendingStart), 24, BLACK);
         float pendingY = pendingStart + 32.0f;
         for (size_t i = 0; i < pending.size(); ++i)
         {
-            Rectangle item{20.0f, pendingY, static_cast<float>(screenWidth - 40), 40.0f};
+            Rectangle item{margin, pendingY, static_cast<float>(screenWidth - margin * 2.0f), 40.0f};
             bool hover = CheckCollisionPointRec(mouse, item);
             Color fill = (selectedPending == static_cast<int>(i)) ? Fade(SKYBLUE, 0.35f) : Fade(LIGHTGRAY, 0.35f);
             if (hover)

@@ -107,7 +107,7 @@ int main()
 
     while (true)
     {
-        SetWindowSize(920, 720);
+        SetWindowSize(1280, 720);
         SetWindowTitle("3D Chess Online - Match Lobby");
 
         bool matched = SeekPeer(client, node);
@@ -127,7 +127,7 @@ int main()
                 break;
             }
 
-            SetWindowSize(920, 720);
+            SetWindowSize(1280, 720);
             SetWindowTitle("3D Chess Online - Match Lobby");
         }
     }
