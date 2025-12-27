@@ -5,11 +5,6 @@
 Client::Client(lanp2p::LanP2PNode &node)
 	: _node(node)
 {
-	// 向底层节点注册回调，绑定到本类的私有成员函数
-	_node.setOnPeerDiscovered([this](const lanp2p::PeerInfo &p)
-	{
-		this->onPeerDiscovered(p);
-	});
 	_node.setOnMatchRequest([this](const lanp2p::PeerInfo &p, const std::string &mid)
 	{
 		this->onMatchRequest(p, mid);
@@ -27,7 +22,6 @@ Client::Client(lanp2p::LanP2PNode &node)
 		this->onGameMove(p, x, y, z);
 	});
 
-	// 启动后台线程以处理匹配请求的自动超时拒绝
 	startTimeoutThread();
 }
 
@@ -51,7 +45,6 @@ Client::~Client()
 	_node.stop();
 
 	// 清空回调（避免回调到已失效对象）
-	_node.setOnPeerDiscovered(nullptr);
 	_node.setOnMatchRequest(nullptr);
 	_node.setOnMatchResponse(nullptr);
 	_node.setOnMatchInterrupted(nullptr);
@@ -199,10 +192,6 @@ int Client::getGameResult() const
 }
 
 // --- 私有方法（回调与线程） ---
-
-void Client::onPeerDiscovered(const lanp2p::PeerInfo &p)
-{
-}
 
 void Client::onMatchRequest(const lanp2p::PeerInfo &p, const std::string &matchId)
 {

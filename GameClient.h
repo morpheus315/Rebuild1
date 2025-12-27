@@ -89,7 +89,6 @@ class Client
 		bool _opponentMoved{ false };//对端是否落子
 		int _opponentMove[3] { 0, 0, 0 };//对端落子
 
-		void onPeerDiscovered(const lanp2p::PeerInfo &p);//回调：发现对端
 		void onMatchRequest(const lanp2p::PeerInfo &p, const std::string &matchId);//回调：接到请求
 		void onMatchResponse(const lanp2p::PeerInfo &p, bool accepted, const std::string &matchId);//回调：接到回答
 		void onMatchInterrupted(const lanp2p::PeerInfo &p, const std::string &matchId);//回调：被打断
