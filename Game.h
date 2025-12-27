@@ -7,4 +7,4 @@ namespace lanp2p
 }
 
 bool SeekPeer(Client &client, lanp2p::LanP2PNode &node);
-int RunGame();
+int RunGame(Client* client=nullptr);

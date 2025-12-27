@@ -43,6 +43,14 @@ class Client
 		std::vector<PendingRequestInfo> getPendingRequestsSnapshot();
 		bool respondToPendingRequest(const PendingRequestInfo &req, bool accept);
 
+		bool isMyTurn() const;
+		char getMyPlayer() const;
+		bool isGameRunning() const;
+
+		bool tryPlaceMyPiece(int x, int y, int z);
+		bool tryGetOpponentMove(int& outX, int& outY, int& outZ);
+		void initGameState();
+
 	private:
 		lanp2p::LanP2PNode &_node;//局域网通信节点
 
@@ -72,7 +80,7 @@ class Client
 		const std::chrono::seconds _requestTimeout{ 30 };
 
 		char *_chessBoard{ nullptr };//棋盘
-		const int _boardSize{ 20 };//棋盘大小
+		const int _boardSize{ 9 };//棋盘大小
 		bool _myTurn{ false };
 		char _myPlayer{ '1' };//先后手
 		std::atomic<bool> _gameRunning{ false };

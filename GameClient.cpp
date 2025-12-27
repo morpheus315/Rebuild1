@@ -287,6 +287,20 @@ bool Client::respondToPendingRequest(const PendingRequestInfo &req, bool accept)
 	return true;
 }
 
+bool Client::isMyTurn() const
+{
+	return _myTurn;
+}
+
+char Client::getMyPlayer() const
+{
+	return _myPlayer;
+}
+
+bool Client::isGameRunning() const
+{
+	return _gameRunning.load();
+}
 
 // --- 私有方法（回调与线程） ---
 
@@ -475,6 +489,52 @@ void Client::cleanupGameState()
 	}
 }
 
+bool Client::tryPlaceMyPiece(int x, int y, int z)
+{
+	if (!_myTurn || !_gameRunning.load())
+		return false;
+	int coords[3] = { x,y,z };
+	if (UpdateBoardState(_boardSize, _chessBoard, coords, _myPlayer))
+	{
+		// 读取对手信息，发送我方落子给对手
+		lanp2p::PeerInfo opponent;
+		{
+			std::lock_guard<std::mutex> lk(_matchMutex);
+			opponent = _match.peer;
+		}
+
+		_node.sendGameMove(opponent.ip, opponent.tcpPort, coords[0], coords[1], coords[2]);
+		if (CheckWin(_boardSize, _chessBoard, coords, _myPlayer))
+		{
+			_gameRunning = false;
+			return true;
+		}
+		_myTurn = false;
+		return true;
+	}
+	return false;
+}
+
+bool Client::tryGetOpponentMove(int& outX, int& outY, int& outZ)
+{
+	std::lock_guard<std::mutex> lk(_moveMutex);
+	if (_opponentMoved)
+	{
+		outX = _opponentMove[0];
+		outY = _opponentMove[1];
+		outZ = _opponentMove[2];
+		char opponentPlayer = (_myPlayer == '1') ? '2' : '1';
+		UpdateBoardState(_boardSize, _chessBoard, _opponentMove, opponentPlayer);
+		if (CheckWin(_boardSize, _chessBoard, _opponentMove, opponentPlayer))
+		{
+			_gameRunning = false;
+		}
+		_opponentMoved = false;
+		_myTurn = true;
+		return true;
+	}
+	return false;
+}
 void Client::gameLoop()
 {
 	// 主循环：根据回合决定本地落子或处理对手落子
