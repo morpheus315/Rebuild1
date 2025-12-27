@@ -21,13 +21,10 @@ class Client
 		Client(const Client &) = delete;
 		Client &operator=(const Client &) = delete;
 
-		void startDiscovery();//开始udp监听
 		std::vector<lanp2p::PeerInfo> getAvailablePeers();//获取当前活跃客户端列表
 		bool requestMatch(const lanp2p::PeerInfo &peer);//请求匹配
-		void handlePendingRequests();//处理匹配请求
 
 		bool isInMatch() const;//是否匹配
-		void startGame();//启动！
 		void endMatch();//断开匹配
 
 		std::string getMatchId() const;//获取匹配ID
@@ -101,7 +98,5 @@ class Client
 		void timeoutThreadLoop();//清除pendingrequest中的过期信息
 		void startTimeoutThread();//启动清理线程
 		void stopTimeoutThread();//停止线程
-
-		void gameLoop();//主循环
 		void cleanupGameState();//清理资源
 };

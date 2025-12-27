@@ -23,20 +23,6 @@ bool OnlineInitChessBoard(char **pChessBoard, int BoardSize)
 	return true;
 }
 
-//ÊäÈëÆå×ÓÎ»ÖÃ
-void NativeGetChessPosition(int input[])
-{
-	while (true)
-	{
-		if (!(cin >> input[0] >> input[1] >> input[2]))
-		{
-			cin.clear();
-			cin.ignore(numeric_limits<streamsize>::max(), '\n');
-			continue;
-		}
-		break;
-	}
-}
 
 
 

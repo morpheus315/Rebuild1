@@ -53,21 +53,6 @@ static BOOL WINAPI ConsoleCtrlHandler(DWORD ctrlType)
 	return FALSE;
 }
 
-static void gracefulExit(lanp2p::LanP2PNode &node, Client &client, int code = 0)
-{
-    try {
-        if (client.isInMatch()) client.endMatch();
-    } catch (...) {}
-    try {
-        node.stop();
-    } catch (...) {}
-    // ensure window closed
-    if (!WindowShouldClose()) CloseWindow();
-    // give threads a moment
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    std::exit(code);
-}
-
 int main()
 {
     using namespace lanp2p;
@@ -164,10 +149,6 @@ int main()
 
     if (!name.empty())
         node.setNodeName(name);
-
-    std::cout << "Initialization done. Your ID: " << node.getNodeId()
-        << ", TCP port: " << node.getTcpPort()
-        << ", discovery port: " << node.getDiscoveryPort() << std::endl;
 
     // ========== 第二步：主循环（匹配 -> 游戏） ==========
     while (true)
