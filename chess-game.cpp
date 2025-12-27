@@ -1,9 +1,6 @@
-#include <cstdio>
-#include <iostream>
-#include <limits>
+#include<cstdlib>
 #include "chess-game.h"
 //棋盘位置逻辑：右手系xyz，先沿x再沿y再沿z，比如BoardSize=5，那*(ChessBoard+17)对应的棋子位置就是（2，4，1），计算公式：17=（2-1）+（4-1）* 5 +（1-1）* 25
-using namespace std;
 
 
 //根据坐标输出棋子存储位置
@@ -23,21 +20,6 @@ bool OnlineInitChessBoard(char **pChessBoard, int BoardSize)
 	return true;
 }
 
-void NativeGetChessPosition(int input[])
-{
-	while (true)
-	{
-		std::cout << "Enter move (x y z): ";
-		if (std::cin >> input[0] >> input[1] >> input[2])
-		{
-			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-			break;
-		}
-		std::cout << "Invalid input, please enter three integers." << std::endl;
-		std::cin.clear();
-		std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-	}
-}
 
 //新函数：接受棋局描述，检查位置合法性，如果合法则更新棋局，否则输出非法标记
 bool UpdateBoardState(int BoardSize, char *ChessBoard, int input[], char player)

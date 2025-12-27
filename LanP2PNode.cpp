@@ -213,10 +213,6 @@ namespace lanp2p
 			}
 			if (_peerStaleMs > 0 && (now - it->second.lastSeenMs) > _peerStaleMs)
 			{
-				const PeerInfo &p = it->second;
-				std::printf("[LanP2PNode][DEBUG] 因超时移除 peer (DISC 快照): id=%s ip=%s port=%u lastSeenMs=%llu nowMs=%llu staleMs=%llu\n",
-				            p.id.c_str(), p.ip.c_str(), (unsigned)p.tcpPort,
-				            (unsigned long long)p.lastSeenMs, (unsigned long long)now, (unsigned long long)_peerStaleMs);
 				it = _peersByKey.erase(it);
 			}
 			else
@@ -486,9 +482,8 @@ namespace lanp2p
 	// TCP连接处理（解析协议并回调上层）
 	void LanP2PNode::tcpConnectionHandler(uintptr_t sock, std::string remoteIp)
 	{
-		// set receive timeout so blocking recv will timeout periodically
 		{
-			int timeoutMs = 500; // 500ms
+			int timeoutMs = 500;
 			setsockopt(static_cast<SOCKET>(sock), SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeoutMs, sizeof(timeoutMs));
 		}
 		std::string payload;
@@ -701,7 +696,6 @@ namespace lanp2p
 		uint32_t be =0; int got =0; int r =0;
 		while (got <4) { r = recv(static_cast<SOCKET>(sock), ((char*)&be) + got,4 - got,0); if (r <=0) return false; got += r; }
 		uint32_t n = ntohl(be);
-		// 限制最大帧长度，防止恶意端发送超大帧
 		const uint32_t MAX_FRAME_SIZE = 8192;
 		if (n > MAX_FRAME_SIZE) return false;
 		outPayload.resize(n);
@@ -915,10 +909,6 @@ namespace lanp2p
 					}
 					if ((now - it->second.lastSeenMs) > _peerStaleMs)
 					{
-						const PeerInfo &p = it->second;
-						std::printf("[LanP2PNode][DEBUG] 因超时移除 peer (DISC维护): id=%s ip=%s port=%u lastSeenMs=%llu nowMs=%llu staleMs=%llu\n",
-						            p.id.c_str(), p.ip.c_str(), (unsigned)p.tcpPort,
-						            (unsigned long long)p.lastSeenMs, (unsigned long long)now, (unsigned long long)_peerStaleMs);
 						it = _peersByKey.erase(it);
 					}
 					else ++it;
@@ -973,9 +963,6 @@ namespace lanp2p
 					size_t p2 = (p1 == std::string::npos) ? std::string::npos : key.find(':', p1 + 1);
 					if (p2 != std::string::npos)
 						peerId = key.substr(p2 + 1);
-					std::printf("[LanP2PNode][DEBUG] 因超时移除 peer (HB 超时): id=%s ip=%s port=%u matchId=%s lastHbMs=%llu nowMs=%llu timeoutMs=%llu\n",
-					            peerId.c_str(), ip.c_str(), (unsigned)port, matchId.c_str(),
-					            (unsigned long long)last, (unsigned long long)now2, (unsigned long long)_matchHeartbeatTimeoutMs);
 					clearMatch(ip, port, peerId, matchId, true);
 				}
 			}
