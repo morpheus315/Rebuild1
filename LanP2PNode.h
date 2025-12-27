@@ -45,12 +45,14 @@ namespace lanp2p
 			void setOnMatchResponse(const std::function<void(const PeerInfo &, bool accepted, const std::string &matchId)> &cb);
 			void setOnMatchInterrupted(const std::function<void(const PeerInfo &, const std::string &matchId)> &cb);
 			void setOnGameMove(const std::function<void(const PeerInfo &, int x, int y, int z)> &cb);
+			void setOnBoardSync(const std::function<void(const PeerInfo &, const std::string &boardState)> &cb);
 
 			// 业务操作：发起/响应/中断匹配；发送落子
 			bool sendMatchRequest(const std::string &peerIp, uint16_t peerTcpPort, const std::string &matchId);
 			bool respondToMatch(const std::string &peerIp, uint16_t peerTcpPort, const std::string &matchId, bool accept);
 			bool interruptMatch(const std::string &peerIp, uint16_t peerTcpPort, const std::string &matchId);
 			bool sendGameMove(const std::string &peerIp, uint16_t peerTcpPort, int x, int y, int z);
+			bool sendBoardState(const std::string &peerIp, uint16_t peerTcpPort, const std::string &boardState);
 
 			// 获取当前可用对端的快照（会剔除超时的项）
 			std::vector<PeerInfo> getPeersSnapshot();
@@ -161,6 +163,7 @@ namespace lanp2p
 			std::function<void(const PeerInfo &, bool, const std::string &)> _onMatchResponse;
 			std::function<void(const PeerInfo &, const std::string &)> _onMatchInterrupted;
 			std::function<void(const PeerInfo &, int x, int y, int z)> _onGameMove;
+			std::function<void(const PeerInfo &, const std::string &)> _onBoardSync;
 
 			// 对端与匹配状态
 			std::mutex _peersMutex;

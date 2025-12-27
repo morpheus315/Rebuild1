@@ -198,6 +198,10 @@ namespace lanp2p
 	{
 		_onGameMove = cb;
 	}
+	void LanP2PNode::setOnBoardSync(const std::function<void(const PeerInfo &, const std::string &)> &cb)
+	{
+		_onBoardSync = cb;
+	}
 
 	// 返回当前在线的对端快照（移除超时项）
 	std::vector<PeerInfo> LanP2PNode::getPeersSnapshot()
@@ -380,7 +384,7 @@ namespace lanp2p
 			addr.sin_family = AF_INET;
 			addr.sin_port = htons(peerTcpPort);
 			addr.sin_addr.s_addr = inet_addr(peerIp.c_str());
-			if (connect(static_cast<SOCKET>(s), (sockaddr * )&addr, sizeof(addr)) != 0)
+			if (connect(static_cast<SOCKET>(s), (sockaddr *)&addr, sizeof(addr)) != 0)
 			{
 				closesock(s);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -393,6 +397,33 @@ namespace lanp2p
 			if (ok)
 				return true;
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));
+		}
+		return false;
+	}
+
+	bool LanP2PNode::sendBoardState(const std::string &peerIp, uint16_t peerTcpPort, const std::string &boardState)
+	{
+		for (int attempt = 0; attempt < _maxSendRetries; ++attempt)
+		{
+			uintptr_t s = (uintptr_t)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+			if ((SOCKET)s == INVALID_SOCKET)
+				return false;
+			sockaddr_in addr{};
+			addr.sin_family = AF_INET;
+			addr.sin_port = htons(peerTcpPort);
+			addr.sin_addr.s_addr = inet_addr(peerIp.c_str());
+			if (connect(static_cast<SOCKET>(s), (sockaddr *)&addr, sizeof(addr)) != 0)
+			{
+				closesock(s);
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				continue;
+			}
+			std::string payload = "SYNC|" + _nodeId + "|" + boardState + "|";
+			bool ok = tcpSendFramed(s, payload);
+			closesock(s);
+			if (ok)
+				return true;
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		}
 		return false;
 	}
@@ -657,9 +688,41 @@ namespace lanp2p
 							_onGameMove(pi, x, y, z);
 						}
 					}
-					catch (...) { /* 转换失败忽略 */ }
+					catch (...) { }
 				}
-
+			}
+			else if (payload.compare(0, 5, "SYNC|") == 0)
+			{
+				size_t p1 = payload.find('|', 5);
+				size_t p2 = payload.find('|', p1 + 1);
+				if (p1 != std::string::npos && p2 != std::string::npos)
+				{
+					std::string fromId = payload.substr(5, p1 - 5);
+					std::string boardData = payload.substr(p1 + 1, p2 - (p1 + 1));
+					
+					uint16_t ptcp = findPeerTcpPort(remoteIp, fromId);
+					PeerInfo pi;
+					pi.id = fromId;
+					pi.ip = remoteIp;
+					pi.tcpPort = ptcp;
+					pi.lastSeenMs = ts;
+					
+					{
+						std::lock_guard<std::mutex> lk(_peersMutex);
+						for (auto& kv : _peersByKey)
+						{
+							const PeerInfo &pr = kv.second;
+							if (pr.ip == remoteIp && pr.id == fromId)
+							{
+								pi.name = pr.name;
+								break;
+							}
+						}
+					}
+					
+					if (_onBoardSync)
+						_onBoardSync(pi, boardData);
+				}
 			}
 		}
 		closesock(sock);

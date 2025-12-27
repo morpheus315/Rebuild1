@@ -48,6 +48,7 @@ class Client
 		bool tryPlaceMyPiece(int x, int y, int z);
 		bool tryGetOpponentMove(int& outX, int& outY, int& outZ);
 		void initGameState();
+		int getTimeSinceLastSync() const;
 
 	private:
 		lanp2p::LanP2PNode &_node;//局域网通信节点
@@ -89,13 +90,27 @@ class Client
 		bool _opponentMoved{ false };//对端是否落子
 		int _opponentMove[3] { 0, 0, 0 };//对端落子
 
+		std::atomic<bool> _isSyncing{ false };
+		std::chrono::steady_clock::time_point _lastSyncTime;
+		std::thread _syncThread;
+		std::atomic<bool> _syncThreadRunning{ false };
+
 		void onMatchRequest(const lanp2p::PeerInfo &p, const std::string &matchId);//回调：接到请求
 		void onMatchResponse(const lanp2p::PeerInfo &p, bool accepted, const std::string &matchId);//回调：接到回答
 		void onMatchInterrupted(const lanp2p::PeerInfo &p, const std::string &matchId);//回调：被打断
 		void onGameMove(const lanp2p::PeerInfo &p, int x, int y, int z);//回调：对端下棋
+		void onBoardSync(const lanp2p::PeerInfo &p, const std::string &boardState);//回调：棋盘状态同步
 
 		void timeoutThreadLoop();//清除pendingrequest中的过期信息
 		void startTimeoutThread();//启动清理线程
 		void stopTimeoutThread();//停止线程
 		void cleanupGameState();//清理资源
+		
+		void syncThreadLoop();
+		void startSyncThread();
+		void stopSyncThread();
+		std::string getBoardStateString() const;
+
+	public:
+		bool isSyncing() const { return _isSyncing.load(); }
 };

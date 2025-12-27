@@ -1,5 +1,7 @@
 #include<cstdlib>
 #include "chess-game.h"
+#include <sstream>
+#include <string>
 //棋盘位置逻辑：右手系xyz，先沿x再沿y再沿z，比如BoardSize=5，那*(ChessBoard+17)对应的棋子位置就是（2，4，1），计算公式：17=（2-1）+（4-1）* 5 +（1-1）* 25
 
 
@@ -112,4 +114,57 @@ int CheckWin(int BoardSize, char* ChessBoard, int input[], char player)
 	}
 
 	return 0;
+}
+
+std::string SerializeBoardState(int BoardSize, char *ChessBoard)
+{
+	std::ostringstream oss;
+	bool first = true;
+	
+	for (int i = 1; i <= BoardSize; ++i)
+	{
+		for (int j = 1; j <= BoardSize; ++j)
+		{
+			for (int k = 1; k <= BoardSize; ++k)
+			{
+				int idx = place(i, j, k, BoardSize);
+				if (ChessBoard[idx] != 0)
+				{
+					if (!first) oss << ";";
+					oss << i << "," << j << "," << k << "," << (int)ChessBoard[idx];
+					first = false;
+				}
+			}
+		}
+	}
+	
+	return oss.str();
+}
+
+void DeserializeBoardState(int BoardSize, char *ChessBoard, const std::string &boardState)
+{
+	if (boardState.empty())
+		return;
+	
+	std::istringstream iss(boardState);
+	std::string piece;
+	
+	while (std::getline(iss, piece, ';'))
+	{
+		if (piece.empty()) continue;
+		
+		int x, y, z, player;
+		char comma;
+		std::istringstream pieceStream(piece);
+		
+		if (pieceStream >> x >> comma >> y >> comma >> z >> comma >> player)
+		{
+			if (x >= 1 && x <= BoardSize && y >= 1 && y <= BoardSize && 
+			    z >= 1 && z <= BoardSize && (player == 1 || player == 2))
+			{
+				int idx = place(x, y, z, BoardSize);
+				ChessBoard[idx] = (char)player;
+			}
+		}
+	}
 }

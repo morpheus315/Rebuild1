@@ -526,6 +526,12 @@ int RunGame(Client *client)
                 DrawText("Your Turn", 1650, 60, 20, GREEN);
             else
                 DrawText("Opponent's Turn", 1650, 60, 20, ORANGE);
+            
+            // 显示最近一次同步的时间（秒）
+            auto timeSinceSync = client->getTimeSinceLastSync();
+            std::string syncText = "Last Sync: " + std::to_string(timeSinceSync) + "s ago";
+            Color syncColor = (timeSinceSync < 6) ? GREEN : (timeSinceSync < 10 ? YELLOW : RED);
+            DrawText(syncText.c_str(), 1650, 90, 16, syncColor);
         }
         else
         {

@@ -21,14 +21,18 @@ Client::Client(lanp2p::LanP2PNode &node)
 	{
 		this->onGameMove(p, x, y, z);
 	});
+	_node.setOnBoardSync([this](const lanp2p::PeerInfo &p, const std::string &bs)
+	{
+		this->onBoardSync(p, bs);
+	});
 
 	startTimeoutThread();
+	_lastSyncTime = std::chrono::steady_clock::now();
 }
 
 // 析构函数
 Client::~Client()
 {
-	// 若在对局中，先发送中断消息通知对方
 	{
 		std::lock_guard<std::mutex> lk(_matchMutex);
 		if (_match.inMatch)
@@ -38,22 +42,19 @@ Client::~Client()
 		}
 	}
 
-	// 停止游戏循环
 	_gameRunning = false;
 
-	// 先停止节点及其所有线程，阻止后续回调触发
 	_node.stop();
 
-	// 清空回调（避免回调到已失效对象）
 	_node.setOnMatchRequest(nullptr);
 	_node.setOnMatchResponse(nullptr);
 	_node.setOnMatchInterrupted(nullptr);
 	_node.setOnGameMove(nullptr);
+	_node.setOnBoardSync(nullptr);
 
-	// 清理超时线程
 	stopTimeoutThread();
+	stopSyncThread();
 
-	// 释放棋盘内存
 	cleanupGameState();
 }
 
@@ -105,7 +106,8 @@ void Client::endMatch()
 	if (wasInMatch)
 	{
 		_node.interruptMatch(peer.ip, peer.tcpPort, matchId);
-		_gameRunning = false; // 确保游戏循环退出
+		_gameRunning = false;
+		stopSyncThread();
 	}
 }
 
@@ -235,7 +237,6 @@ void Client::onMatchInterrupted(const lanp2p::PeerInfo &p, const std::string &ma
 
 void Client::onGameMove(const lanp2p::PeerInfo &p, int x, int y, int z)
 {
-	//仅在对局中且消息来自当前对手时才缓存其落子
 	bool shouldProcess = false;
 	{
 		std::lock_guard<std::mutex> lk(_matchMutex);
@@ -244,7 +245,6 @@ void Client::onGameMove(const lanp2p::PeerInfo &p, int x, int y, int z)
 
 	if (shouldProcess)
 	{
-		// 前置校验坐标范围，忽略非法坐标
 		if (x < 1 || x > _boardSize || y < 1 || y > _boardSize || z < 1 || z > _boardSize)
 			return;
 
@@ -254,6 +254,36 @@ void Client::onGameMove(const lanp2p::PeerInfo &p, int x, int y, int z)
 		_opponentMove[2] = z;
 		_opponentMoved = true;
 	}
+}
+
+void Client::onBoardSync(const lanp2p::PeerInfo &p, const std::string &boardState)
+{
+	std::lock_guard<std::mutex> lk(_matchMutex);
+	if (!_match.inMatch || p.id != _match.peer.id)
+		return;
+	
+	_isSyncing = true;
+	
+	if (_chessBoard)
+	{
+		char *tempBoard = (char*)calloc(_boardSize * _boardSize * _boardSize, sizeof(char));
+		if (tempBoard)
+		{
+			DeserializeBoardState(_boardSize, tempBoard, boardState);
+			
+			for (int i = 0; i < _boardSize * _boardSize * _boardSize; ++i)
+			{
+				if (_chessBoard[i] == 0 && tempBoard[i] != 0)
+				{
+					_chessBoard[i] = tempBoard[i];
+				}
+			}
+			
+			free(tempBoard);
+		}
+	}
+	
+	_isSyncing = false;
 }
 
 void Client::timeoutThreadLoop()
@@ -299,6 +329,65 @@ void Client::stopTimeoutThread()
 	}
 }
 
+void Client::syncThreadLoop()
+{
+	while (_syncThreadRunning.load())
+	{
+		auto now = std::chrono::steady_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - _lastSyncTime);
+		
+		if (elapsed.count() >= 5)
+		{
+			bool shouldSync = false;
+			{
+				std::lock_guard<std::mutex> lk(_matchMutex);
+				shouldSync = _match.inMatch && _gameRunning.load();
+			}
+			
+			if (shouldSync)
+			{
+				_isSyncing = true;
+				
+				std::string boardState = getBoardStateString();
+				lanp2p::PeerInfo opponent;
+				{
+					std::lock_guard<std::mutex> lk(_matchMutex);
+					opponent = _match.peer;
+				}
+				
+				_node.sendBoardState(opponent.ip, opponent.tcpPort, boardState);
+				
+				_lastSyncTime = now;
+				_isSyncing = false;
+			}
+		}
+		
+		std::this_thread::sleep_for(std::chrono::milliseconds(500));
+	}
+}
+
+void Client::startSyncThread()
+{
+	_syncThreadRunning = true;
+	_syncThread = std::thread(&Client::syncThreadLoop, this);
+}
+
+void Client::stopSyncThread()
+{
+	_syncThreadRunning = false;
+	if (_syncThread.joinable())
+	{
+		_syncThread.join();
+	}
+}
+
+std::string Client::getBoardStateString() const
+{
+	if (!_chessBoard)
+		return "";
+	return SerializeBoardState(_boardSize, _chessBoard);
+}
+
 void Client::initGameState()
 {
 	// 初始化棋盘（确保旧棋盘已释放）
@@ -336,10 +425,17 @@ void Client::initGameState()
 	_gameRunning = true;
 	_opponentMoved = false;
 	_gameResult = 0;
+	
+	// 确保旧的同步线程已停止，再启动新的
+	stopSyncThread();
+	startSyncThread();
 }
 
 void Client::cleanupGameState()
 {
+	// 先停止同步线程，防止访问即将释放的棋盘内存
+	stopSyncThread();
+	
 	if (_chessBoard)
 	{
 		free(_chessBoard);
@@ -349,7 +445,7 @@ void Client::cleanupGameState()
 
 bool Client::tryPlaceMyPiece(int x, int y, int z)
 {
-	if (!_myTurn || !_gameRunning.load())
+	if (!_myTurn || !_gameRunning.load() || _isSyncing.load())
 		return false;
 	int coords[3] = { x,y,z };
 	if (UpdateBoardState(_boardSize, _chessBoard, coords, _myPlayer))
@@ -394,5 +490,12 @@ bool Client::tryGetOpponentMove(int& outX, int& outY, int& outZ)
 		return true;
 	}
 	return false;
+}
+
+int Client::getTimeSinceLastSync() const
+{
+	auto now = std::chrono::steady_clock::now();
+	auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - _lastSyncTime);
+	return static_cast<int>(elapsed.count());
 }
 
