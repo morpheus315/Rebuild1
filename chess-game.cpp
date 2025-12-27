@@ -1,9 +1,6 @@
-#include <cstdio>
-#include <iostream>
-#include <limits>
+#include<cstdlib>
 #include "chess-game.h"
 //棋盘位置逻辑：右手系xyz，先沿x再沿y再沿z，比如BoardSize=5，那*(ChessBoard+17)对应的棋子位置就是（2，4，1），计算公式：17=（2-1）+（4-1）* 5 +（1-1）* 25
-using namespace std;
 
 
 //根据坐标输出棋子存储位置
