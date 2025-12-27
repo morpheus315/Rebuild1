@@ -90,7 +90,6 @@ int main()
         DrawText(name.c_str(), inputBoxX + 10, inputBoxY + 15, 24, BLACK);
         DrawText("Press ENTER to continue", (screenWidth - MeasureText("Press ENTER to continue", 20)) / 2, inputBoxY + 70, 20, GRAY);
         DrawText("(ESC or close window to exit)", (screenWidth - MeasureText("(ESC or close window to exit)", 18)) / 2, inputBoxY + 100, 18, LIGHTGRAY);
-        DrawText(TextFormat("Chars: %d", (int)name.length()), inputBoxX + inputBoxWidth - 60, inputBoxY - 25, 16, RED);
         EndDrawing();
     }
 
