@@ -148,6 +148,24 @@ namespace lanp2p
 			sendto(static_cast<SOCKET>(ps), "", 0, 0, (sockaddr *)&a, sizeof(a));
 			closesock(ps);
 		}
+
+		// 发送本地TCP连接以唤醒 accept 阻塞（如果 TCP listener 已经绑定）
+		if (_tcpPort != 0)
+		{
+			uintptr_t ts = (uintptr_t)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+			if ((SOCKET)ts != INVALID_SOCKET)
+			{
+				sockaddr_in ta{};
+				ta.sin_family = AF_INET;
+				ta.sin_port = htons(_tcpPort);
+				ta.sin_addr.s_addr = inet_addr("127.0.0.1");
+				// try connect; ignore failure
+				connect(static_cast<SOCKET>(ts), (sockaddr *)&ta, sizeof(ta));
+				// no need to send data; close to let accept return a socket
+				closesock(ts);
+			}
+		}
+
 		if (_udpBroadcaster.joinable())
 			_udpBroadcaster.join();
 		if (_udpListener.joinable())
@@ -468,17 +486,23 @@ namespace lanp2p
 	// TCP连接处理（解析协议并回调上层）
 	void LanP2PNode::tcpConnectionHandler(uintptr_t sock, std::string remoteIp)
 	{
+		// set receive timeout so blocking recv will timeout periodically
+		{
+			int timeoutMs = 500; // 500ms
+			setsockopt(static_cast<SOCKET>(sock), SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeoutMs, sizeof(timeoutMs));
+		}
 		std::string payload;
 		while (_running && tcpRecvFramed(sock, payload))
 		{
 			const uint64_t ts = nowMs();
 			if (payload.compare(0, 4, "REQ|") == 0)
 			{
-				// 格式：REQ|fromId|fromPort|matchId|[toId]|
+				// 格式：REQ|fromId|fromPort|matchId|[toId]|[fromName]|
 				size_t p1 = payload.find('|', 4);
 				size_t p2 = (p1 != std::string::npos) ? payload.find('|', p1 + 1) : std::string::npos;
 				size_t p3 = (p2 != std::string::npos) ? payload.find('|', p2 + 1) : std::string::npos;
 				size_t p4 = (p3 != std::string::npos) ? payload.find('|', p3 + 1) : std::string::npos;
+				size_t p5 = (p4 != std::string::npos) ? payload.find('|', p4 + 1) : std::string::npos;
 				if (p1 != std::string::npos && p2 != std::string::npos && p3 != std::string::npos)
 				{
 					std::string fromId = payload.substr(4, p1 - 4);
@@ -487,35 +511,31 @@ namespace lanp2p
 					{
 						fromPort = (uint16_t)std::stoi(payload.substr(p1 + 1, p2 - (p1 + 1)));
 					}
-					catch (...)
-					{
-						fromPort = 0;
-					}
+					catch (...) { fromPort = 0; }
 					std::string matchId = payload.substr(p2 + 1, p3 - (p2 + 1));
 					std::string toId;
+					std::string fromName;
 					if (p4 != std::string::npos)
+					{
 						toId = payload.substr(p3 + 1, p4 - (p3 + 1));
-					if (fromId == _nodeId)
-						continue; // 忽略自身请求
-					if (!toId.empty() && toId != _nodeId)
-						continue; // 目标不是我则忽略
+						if (p5 != std::string::npos)
+							fromName = payload.substr(p4 + 1, p5 - (p4 + 1));
+					}
+					if (fromId == _nodeId) continue; // 忽略自身请求
+					if (!toId.empty() && toId != _nodeId) continue; // 目标不是我则忽略
 					// 用消息更新/插入对端表
 					PeerInfo piMsg;
 					piMsg.id = fromId;
+					piMsg.name = fromName;
 					piMsg.ip = remoteIp;
 					piMsg.tcpPort = fromPort;
 					piMsg.lastSeenMs = ts;
 					{
 						std::lock_guard<std::mutex> lk(_peersMutex);
 						std::string key = piMsg.ip + ":" + std::to_string(piMsg.tcpPort) + ":" + piMsg.id;
-						auto it = _peersByKey.find(key);
-						if (it != _peersByKey.end())
-							piMsg.name = it->second.name;
 						_peersByKey[key] = piMsg;
 					}
-					if (_onMatchRequest)
-						_onMatchRequest(piMsg, matchId);
-					// 标记匹配为活跃（心跳）
+					if (_onMatchRequest) _onMatchRequest(piMsg, matchId);
 					markMatchActive(remoteIp, fromPort, fromId, matchId);
 				}
 			}
@@ -723,9 +743,9 @@ namespace lanp2p
 			}
 			std::ostringstream oss;
 			if (toId.empty())
-				oss << "REQ|" << _nodeId << "|" << _tcpPort << "|" << matchId << "|";
+				oss << "REQ|" << _nodeId << "|" << _tcpPort << "|" << matchId << "||" << _nodeName << "|";
 			else
-				oss << "REQ|" << _nodeId << "|" << _tcpPort << "|" << matchId << "|" << toId << "|";
+				oss << "REQ|" << _nodeId << "|" << _tcpPort << "|" << matchId << "|" << toId << "|" << _nodeName << "|";
 			bool ok = tcpSendFramed(s, oss.str());
 			closesock(s);
 			if (ok)
@@ -743,6 +763,20 @@ namespace lanp2p
 	bool LanP2PNode::respondToMatch(const std::string &peerIp, uint16_t peerTcpPort, const std::string &matchId,
 	                                bool accept)
 	{
+		std::string peerId;
+		{
+			std::lock_guard<std::mutex> lk(_peersMutex);
+			for (auto& kv : _peersByKey)
+			{
+				const PeerInfo &p = kv.second;
+				if (p.ip == peerIp && p.tcpPort == peerTcpPort)
+				{
+					peerId = p.id;
+					break;
+				}
+			}
+		}
+		
 		for (int attempt = 0; attempt < _maxSendRetries; ++attempt)
 		{
 			uintptr_t s = (uintptr_t)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -763,7 +797,11 @@ namespace lanp2p
 			bool ok = tcpSendFramed(s, oss.str());
 			closesock(s);
 			if (ok)
+			{
+				if (accept && !peerId.empty())
+					markMatchActive(peerIp, peerTcpPort, peerId, matchId);
 				return true;
+			}
 			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		}
 		return false;

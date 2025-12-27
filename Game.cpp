@@ -21,9 +21,6 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
     const int screenWidth = 920;
     const int screenHeight = 720;
 
-    InitWindow(screenWidth, screenHeight, "Seek Peer");
-    SetTargetFPS(60);
-
     Button discoverBtn(Rectangle{20.0f, 20.0f, 180.0f, 40.0f}, "Discover (10s)");
     Button requestBtn(Rectangle{210.0f, 20.0f, 180.0f, 40.0f}, "Request Match");
     Button acceptBtn(Rectangle{400.0f, 20.0f, 180.0f, 40.0f}, "Accept");
@@ -107,7 +104,6 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
                 node.stopUdpListen();
                 discoveryActive = false;
             }
-            CloseWindow();
             return false;
         }
 
@@ -161,7 +157,6 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
         discoveryActive = false;
     }
 
-    CloseWindow();
     return client.isInMatch();
 }
 
@@ -185,13 +180,14 @@ float d2r(float degree)
 }
 } // namespace
 
-int RunGame()
+int RunGame(Client *client)
 {
     const int screenWidth = 1980;
     const int screenHeight = 1280;
 
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(screenWidth, screenHeight, "Sample");
+    SetWindowSize(screenWidth, screenHeight);
+    SetWindowTitle("3D Chess Online - Game");
+    SetTargetFPS(30);
 
     Camera3D camera = {0};
     camera.position = Vector3{400.0f, 0.0f, 0.0f};
@@ -247,8 +243,61 @@ int RunGame()
     short ColorBoard[BoardSize + 2][BoardSize + 2][BoardSize + 2];
     memset(ColorBoard, 0, sizeof(ColorBoard));
 
+    if (client)
+    {
+		client->initGameState();
+    }
+
+    double gameOverTime = 0.0;
+    bool gameEnded = false;
+
     while (!WindowShouldClose())
     {
+        if (client && !client->isGameRunning() && !gameEnded)
+        {
+            gameEnded = true;
+            gameOverTime = GetTime();
+        }
+
+        if (gameEnded)
+        {
+            if (GetTime() - gameOverTime > 3.0)
+            {
+                break;
+            }
+            
+            BeginDrawing();
+            ClearBackground(BLACK);
+            
+            int result = client->getGameResult();
+            if (result == 1)
+            {
+                DrawText("YOU WIN!", screenWidth / 2 - 150, screenHeight / 2 - 50, 60, GREEN);
+            }
+            else if (result == 2)
+            {
+                DrawText("YOU LOSE!", screenWidth / 2 - 150, screenHeight / 2 - 50, 60, RED);
+            }
+            else
+            {
+                DrawText("GAME INTERRUPTED", screenWidth / 2 - 200, screenHeight / 2 - 50, 50, ORANGE);
+            }
+            
+            DrawText("Returning to lobby in 3 seconds...", screenWidth / 2 - 250, screenWidth / 2 + 50, 24, WHITE);
+            EndDrawing();
+            continue;
+        }
+
+        if (client && !client->isMyTurn() && client->isGameRunning())
+        {
+            int x, y, z;
+            if (client->tryGetOpponentMove(x, y, z))
+            {
+                int opponentColor = (client->getMyPlayer() == '1') ? 2 : 1;
+                ColorBoard[x][y][z] = opponentColor;
+                gameStep++;
+            }
+        }
         AddText.clear();
         spheres.clear();
         Axis_length = SphereDist * (BoardSize + 5.0f) / 2;
@@ -368,8 +417,20 @@ int RunGame()
                             AddText = " --Mouse On (" + std::to_string(i) + "," + std::to_string(j) + "," + std::to_string(k) + ")";
                             if (ColorBoard[i][j][k] == 0 && IsMouseButtonDown(MOUSE_BUTTON_LEFT))
                             {
-                                ColorBoard[i][j][k] = (gameStep % 2 + 1);
-                                ++gameStep;
+                                if (client)
+                                {
+                                    if (client->isMyTurn() && client->tryPlaceMyPiece(i, j, k))
+                                    {
+                                        int myColor = (client->getMyPlayer() == '1') ? 1 : 2;
+                                        ColorBoard[i][j][k] = myColor;
+                                        gameStep++;
+                                    }
+                                }
+                                else
+                                {
+                                    ColorBoard[i][j][k] = (gameStep % 2 + 1);
+                                    ++gameStep;
+                                }
                             }
                         }
 
@@ -407,8 +468,20 @@ int RunGame()
                 AddText = " --Hover (" + std::to_string(highlighted.i) + "," + std::to_string(highlighted.j) + "," + std::to_string(highlighted.k) + ")";
                 if (ColorBoard[highlighted.i][highlighted.j][highlighted.k] == 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
                 {
-                    ColorBoard[highlighted.i][highlighted.j][highlighted.k] = (gameStep % 2 + 1);
-                    ++gameStep;
+                    if (client)
+                    {
+                        if (client->isMyTurn() && client->tryPlaceMyPiece(highlighted.i, highlighted.j, highlighted.k))
+                        {
+                            int myColor = (client->getMyPlayer() == '1') ? 1 : 2;
+                            ColorBoard[highlighted.i][highlighted.j][highlighted.k] = myColor;
+                            gameStep++;
+                        }
+                    }
+                    else
+                    {
+                        ColorBoard[highlighted.i][highlighted.j][highlighted.k] = (gameStep % 2 + 1);
+                        ++gameStep;
+                    }
                 }
             }
 
@@ -424,12 +497,25 @@ int RunGame()
             }
         }
         EndMode3D();
-        DrawCircle(1900, 60, 30, typeColor[(gameStep % 2 + 1)]);
+        int currentPlayer = ((gameStep - 1) % 2) + 1;
+        DrawCircle(1900, 60, 30, typeColor[currentPlayer]);
         DrawText(std::to_string(gameStep).c_str(), 1850, 1230, 50, WHITE);
-        if ((gameStep % 2 + 1) == 1)
-            DrawText("BLUE's Turn", 1650, 60, 20, WHITE);
-        if ((gameStep % 2 + 1) == 2)
-            DrawText("RED's Turn", 1650, 60, 20, WHITE);
+        
+        if (client)
+        {
+            if (client->isMyTurn())
+                DrawText("Your Turn", 1650, 60, 20, GREEN);
+            else
+                DrawText("Opponent's Turn", 1650, 60, 20, ORANGE);
+        }
+        else
+        {
+            if (currentPlayer == 1)
+                DrawText("BLUE's Turn", 1650, 60, 20, WHITE);
+            else
+                DrawText("RED's Turn", 1650, 60, 20, WHITE);
+        }
+        
         Vector2 xPos = GetWorldToScreen(Vector3{Axis_length, 0.0f, 0.0f}, camera);
         Vector2 yPos = GetWorldToScreen(Vector3{0.0f, Axis_length, 0.0f}, camera);
         Vector2 zPos = GetWorldToScreen(Vector3{0.0f, 0.0f, Axis_length}, camera);
@@ -564,7 +650,7 @@ int RunGame()
         EndDrawing();
     }
 
-    CloseWindow();
+    bool userClosedWindow = WindowShouldClose();
 
-    return 0;
+    return userClosedWindow ? -1 : 0;
 }

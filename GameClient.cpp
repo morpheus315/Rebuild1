@@ -302,6 +302,11 @@ bool Client::isGameRunning() const
 	return _gameRunning.load();
 }
 
+int Client::getGameResult() const
+{
+	return _gameResult;
+}
+
 // --- 私有方法（回调与线程） ---
 
 void Client::onPeerDiscovered(const lanp2p::PeerInfo &p)
@@ -466,6 +471,7 @@ void Client::initGameState()
 	_myTurn = (_myPlayer == '1');
 	_gameRunning = true;
 	_opponentMoved = false;
+	_gameResult = 0;
 
 	std::cout << "Board initialized, you are player " << _myPlayer
 	          << " (" << (_iAmMatchInitiator ? "initiator" : "responder")
@@ -507,6 +513,7 @@ bool Client::tryPlaceMyPiece(int x, int y, int z)
 		if (CheckWin(_boardSize, _chessBoard, coords, _myPlayer))
 		{
 			_gameRunning = false;
+			_gameResult = 1;
 			return true;
 		}
 		_myTurn = false;
@@ -528,6 +535,7 @@ bool Client::tryGetOpponentMove(int& outX, int& outY, int& outZ)
 		if (CheckWin(_boardSize, _chessBoard, _opponentMove, opponentPlayer))
 		{
 			_gameRunning = false;
+			_gameResult = 2;
 		}
 		_opponentMoved = false;
 		_myTurn = true;
@@ -558,6 +566,7 @@ void Client::gameLoop()
 				{
 					std::cout << "You win" << std::endl;
 					_gameRunning = false;
+					_gameResult = 1;
 					break;
 				}
 				_myTurn = false;
@@ -581,6 +590,7 @@ void Client::gameLoop()
 					{
 						std::cout << "You lost" << std::endl;
 						_gameRunning = false;
+						_gameResult = 2;
 					}
 					_opponentMoved = false;
 					moved = true;

@@ -46,6 +46,7 @@ class Client
 		bool isMyTurn() const;
 		char getMyPlayer() const;
 		bool isGameRunning() const;
+		int getGameResult() const;
 
 		bool tryPlaceMyPiece(int x, int y, int z);
 		bool tryGetOpponentMove(int& outX, int& outY, int& outZ);
@@ -79,12 +80,13 @@ class Client
 		std::thread _timeoutThread;
 		const std::chrono::seconds _requestTimeout{ 30 };
 
-		char *_chessBoard{ nullptr };//棋盘
-		const int _boardSize{ 9 };//棋盘大小
+		char *_chessBoard{ nullptr };
+		const int _boardSize{ 9 };
 		bool _myTurn{ false };
-		char _myPlayer{ '1' };//先后手
+		char _myPlayer{ '1' };
 		std::atomic<bool> _gameRunning{ false };
-		bool _iAmMatchInitiator{ false };//是否是发起者
+		bool _iAmMatchInitiator{ false };
+		int _gameResult{ 0 };
 
 		std::mutex _moveMutex;
 		bool _opponentMoved{ false };//对端是否落子
@@ -101,6 +103,5 @@ class Client
 		void stopTimeoutThread();//停止线程
 
 		void gameLoop();//主循环
-		void initGameState();//初始化
 		void cleanupGameState();//清理资源
 };
