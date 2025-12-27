@@ -23,6 +23,20 @@ bool OnlineInitChessBoard(char **pChessBoard, int BoardSize)
 	return true;
 }
 
+//输入棋子位置
+void NativeGetChessPosition(int input[])
+{
+	while (true)
+	{
+		if (!(cin >> input[0] >> input[1] >> input[2]))
+		{
+			cin.clear();
+			cin.ignore(numeric_limits<streamsize>::max(), '\n');
+			continue;
+		}
+		break;
+	}
+}
 
 
 
@@ -47,7 +61,6 @@ bool UpdateBoardState(int BoardSize, char *ChessBoard, int input[], char player)
 
 	// 位置合法，更新棋盘状态
 	ChessBoard[newChessIndex] = player;
-
 
 	return true;
 }
