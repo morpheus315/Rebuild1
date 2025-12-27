@@ -93,7 +93,9 @@ int main()
     SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
 
     // ========== 创建唯一的窗口 ==========
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(920, 720, "3D Chess Online");
+    SetWindowMinSize(640, 480);
     SetTargetFPS(60);
 
     // ========== 第一步：输入名字 ==========
@@ -129,14 +131,23 @@ int main()
             nameEntered = true;
         }
 
+        int screenWidth = GetScreenWidth();
+        int screenHeight = GetScreenHeight();
+
+        int textWidth = MeasureText("Enter Your Name:", 24);
+        int inputBoxWidth = 300;
+        int inputBoxHeight = 50;
+        int inputBoxX = (screenWidth - inputBoxWidth) / 2;
+        int inputBoxY = (screenHeight - inputBoxHeight) / 2;
+
         BeginDrawing();
         ClearBackground(RAYWHITE);
-        DrawText("Enter Your Name:", 100, 50, 20, DARKGRAY);
-        DrawRectangleLines(50, 90, 300, 40, BLACK);
-        DrawText(name.c_str(), 60, 100, 20, BLACK);
-        DrawText("Press ENTER to continue", 80, 150, 16, GRAY);
-        DrawText("(ESC or close window to exit)", 85, 175, 14, LIGHTGRAY);
-        DrawText(TextFormat("Chars: %d", (int)name.length()), 250, 50, 12, RED);
+        DrawText("Enter Your Name:", (screenWidth - textWidth) / 2, inputBoxY - 60, 24, DARKGRAY);
+        DrawRectangleLines(inputBoxX, inputBoxY, inputBoxWidth, inputBoxHeight, BLACK);
+        DrawText(name.c_str(), inputBoxX + 10, inputBoxY + 15, 24, BLACK);
+        DrawText("Press ENTER to continue", (screenWidth - MeasureText("Press ENTER to continue", 20)) / 2, inputBoxY + 70, 20, GRAY);
+        DrawText("(ESC or close window to exit)", (screenWidth - MeasureText("(ESC or close window to exit)", 18)) / 2, inputBoxY + 100, 18, LIGHTGRAY);
+        DrawText(TextFormat("Chars: %d", (int)name.length()), inputBoxX + inputBoxWidth - 60, inputBoxY - 25, 16, RED);
         EndDrawing();
     }
 

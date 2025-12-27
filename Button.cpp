@@ -24,6 +24,16 @@ void Button::SetText(const std::string& text)
     text_ = text;
 }
 
+void Button::SetBounds(const Rectangle& bounds)
+{
+    bounds_ = bounds;
+}
+
+void Button::SetFontSize(int fontSize)
+{
+    fontSize_ = fontSize;
+}
+
 bool Button::Draw()
 {
     const Vector2 mouse = GetMousePosition();

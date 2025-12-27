@@ -15,6 +15,8 @@ public:
            int fontSize = 20);
 
     void SetText(const std::string& text);
+    void SetBounds(const Rectangle& bounds);
+    void SetFontSize(int fontSize);
 
     bool Draw();
 
