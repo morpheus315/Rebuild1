@@ -18,11 +18,14 @@
 
 bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
 {
-    Button discoverBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Discover (10s)");
-    Button requestBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Request Match");
-    Button acceptBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Accept");
-    Button rejectBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Reject");
-    Button exitBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Exit");
+    const int screenWidth = 920;
+    const int screenHeight = 720;
+
+    Button discoverBtn(Rectangle{20.0f, 20.0f, 180.0f, 48.0f}, "Discover (10s)", DARKGRAY, GRAY, LIGHTGRAY, RAYWHITE, 24);
+    Button requestBtn(Rectangle{210.0f, 20.0f, 180.0f, 48.0f}, "Request Match", DARKGRAY, GRAY, LIGHTGRAY, RAYWHITE, 24);
+    Button acceptBtn(Rectangle{400.0f, 20.0f, 180.0f, 48.0f}, "Accept", DARKGRAY, GRAY, LIGHTGRAY, RAYWHITE, 24);
+    Button rejectBtn(Rectangle{590.0f, 20.0f, 180.0f, 48.0f}, "Reject", DARKGRAY, GRAY, LIGHTGRAY, RAYWHITE, 24);
+    Button exitBtn(Rectangle{780.0f, 20.0f, 120.0f, 48.0f}, "Exit", DARKGRAY, GRAY, LIGHTGRAY, RAYWHITE, 24);
 
     int selectedPeer = -1;
     int selectedPending = -1;
@@ -33,27 +36,6 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
 
     while (!WindowShouldClose())
     {
-        const int w = GetScreenWidth();
-        const int h = GetScreenHeight();
-        const float margin = std::max(12.0f, w * 0.02f);
-        const float spacing = std::max(6.0f, w * 0.01f);
-        const float topY = margin;
-        float btnHeight = std::max(32.0f, h * 0.055f);
-        float btnWidth = (w - margin * 2.0f - spacing * 4.0f) / 5.0f;
-        btnWidth = std::max(120.0f, btnWidth);
-        const int btnFontSize = static_cast<int>(std::max(14.0f, btnHeight * 0.45f));
-
-        discoverBtn.SetBounds(Rectangle{margin, topY, btnWidth, btnHeight});
-        requestBtn.SetBounds(Rectangle{margin + (btnWidth + spacing) * 1.0f, topY, btnWidth, btnHeight});
-        acceptBtn.SetBounds(Rectangle{margin + (btnWidth + spacing) * 2.0f, topY, btnWidth, btnHeight});
-        rejectBtn.SetBounds(Rectangle{margin + (btnWidth + spacing) * 3.0f, topY, btnWidth, btnHeight});
-        exitBtn.SetBounds(Rectangle{margin + (btnWidth + spacing) * 4.0f, topY, btnWidth, btnHeight});
-        discoverBtn.SetFontSize(btnFontSize);
-        requestBtn.SetFontSize(btnFontSize);
-        acceptBtn.SetFontSize(btnFontSize);
-        rejectBtn.SetFontSize(btnFontSize);
-        exitBtn.SetFontSize(btnFontSize);
-
         if (client.isInMatch())
             break;
 
@@ -72,20 +54,13 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
         if (selectedPending >= static_cast<int>(pending.size()))
             selectedPending = -1;
 
-        const int headerFontSize = static_cast<int>(std::max(18.0f, h * 0.028f));
-        const int bodyFontSize = static_cast<int>(std::max(16.0f, h * 0.024f));
-        const float listWidth = w - margin * 2.0f;
-        const float itemHeight = std::max(28.0f, h * 0.045f);
-        const float itemSpacing = std::max(4.0f, h * 0.007f);
-
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        const float headerY = topY + btnHeight + margin;
-        DrawText("Match Panel", static_cast<int>(margin), static_cast<int>(headerY), headerFontSize, DARKGRAY);
+        DrawText("Match Panel", 20, 80, 28, DARKGRAY);
         DrawText(TextFormat("Local ID:%s  TCP:%d  Discovery:%d", node.getNodeId().c_str(), node.getTcpPort(), node.getDiscoveryPort()),
-                 static_cast<int>(margin), h - static_cast<int>(margin * 1.8f), bodyFontSize, DARKGRAY);
-        DrawText(status.c_str(), static_cast<int>(margin), h - static_cast<int>(margin * 0.9f), bodyFontSize, BLACK);
+                 20, screenHeight - 70, 22, DARKGRAY);
+        DrawText(status.c_str(), 20, screenHeight - 40, 24, BLACK);
 
         if (discoverBtn.Draw())
         {
@@ -132,12 +107,11 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
             return false;
         }
 
-        float peerLabelY = headerY + headerFontSize + margin * 0.5f;
-        DrawText("Available peers", static_cast<int>(margin), static_cast<int>(peerLabelY), bodyFontSize, BLACK);
-        float peerY = peerLabelY + bodyFontSize + itemSpacing;
+        DrawText("Available peers", 20, 120, 24, BLACK);
+        float peerY = 152.0f;
         for (size_t i = 0; i < peers.size(); ++i)
         {
-            Rectangle item{margin, peerY, listWidth, itemHeight};
+            Rectangle item{20.0f, peerY, static_cast<float>(screenWidth - 40), 40.0f};
             bool hover = CheckCollisionPointRec(mouse, item);
             Color fill = (selectedPeer == static_cast<int>(i)) ? Fade(GREEN, 0.35f) : Fade(LIGHTGRAY, 0.35f);
             if (hover)
@@ -146,20 +120,20 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
             DrawRectangleLinesEx(item, 1.0f, DARKGRAY);
             std::string label = std::to_string(i + 1) + ". " + (peers[i].name.empty() ? peers[i].id : peers[i].name) +
                                  " (" + peers[i].ip + ":" + std::to_string(peers[i].tcpPort) + ")";
-            DrawText(label.c_str(), static_cast<int>(item.x + itemHeight * 0.25f), static_cast<int>(item.y + itemHeight * 0.2f), bodyFontSize, BLACK);
+            DrawText(label.c_str(), static_cast<int>(item.x) + 8, static_cast<int>(item.y) + 8, 22, BLACK);
             if (hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
                 selectedPeer = static_cast<int>(i);
-            peerY += itemHeight + itemSpacing;
+            peerY += 44.0f;
         }
 
-        float pendingStart = peerY + margin;
-        if (pendingStart < peerLabelY + 180.0f * (h / 720.0f))
-            pendingStart = peerLabelY + 180.0f * (h / 720.0f);
-        DrawText("Pending requests", static_cast<int>(margin), static_cast<int>(pendingStart), bodyFontSize, BLACK);
-        float pendingY = pendingStart + bodyFontSize + itemSpacing;
+        float pendingStart = peerY + 24.0f;
+        if (pendingStart < 340.0f)
+            pendingStart = 340.0f;
+        DrawText("Pending requests", 20, static_cast<int>(pendingStart), 24, BLACK);
+        float pendingY = pendingStart + 32.0f;
         for (size_t i = 0; i < pending.size(); ++i)
         {
-            Rectangle item{margin, pendingY, listWidth, itemHeight};
+            Rectangle item{20.0f, pendingY, static_cast<float>(screenWidth - 40), 40.0f};
             bool hover = CheckCollisionPointRec(mouse, item);
             Color fill = (selectedPending == static_cast<int>(i)) ? Fade(SKYBLUE, 0.35f) : Fade(LIGHTGRAY, 0.35f);
             if (hover)
@@ -168,10 +142,10 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
             DrawRectangleLinesEx(item, 1.0f, DARKGRAY);
             std::string label = std::to_string(i + 1) + ". " + (pending[i].peer.name.empty() ? pending[i].peer.id : pending[i].peer.name) +
                                  " (" + pending[i].ip + ":" + std::to_string(pending[i].port) + ") id=" + pending[i].matchId.substr(0, 6);
-            DrawText(label.c_str(), static_cast<int>(item.x + itemHeight * 0.25f), static_cast<int>(item.y + itemHeight * 0.2f), bodyFontSize, BLACK);
+            DrawText(label.c_str(), static_cast<int>(item.x) + 8, static_cast<int>(item.y) + 8, 22, BLACK);
             if (hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
                 selectedPending = static_cast<int>(i);
-            pendingY += itemHeight + itemSpacing;
+            pendingY += 44.0f;
         }
 
         EndDrawing();
@@ -208,10 +182,10 @@ float d2r(float degree)
 
 int RunGame(Client *client)
 {
-    constexpr int defaultScreenWidth = 1980;
-    constexpr int defaultScreenHeight = 1280;
+    const int screenWidth = 1980;
+    const int screenHeight = 1280;
 
-    SetWindowSize(defaultScreenWidth, defaultScreenHeight);
+    SetWindowSize(screenWidth, screenHeight);
     SetWindowTitle("3D Chess Online - Game");
     SetTargetFPS(30);
 
@@ -232,19 +206,19 @@ int RunGame(Client *client)
     float Axis_length = 200.0f;
     const float dragSensitivity = 0.3f;
 
-    Button toggleButton(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Hide all spheres");
-    Button xButton(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "X axis");
-    Button yButton(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Y axis");
-    Button zButton(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Z axis");
-    Button dButton(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "3D");
-    Button HighlightButtonx(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Y-Z Highlight");
-    Button HighlightButtony(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "X-Z Highlight");
-    Button HighlightButtonz(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "X-Y Highlight");
+    Button toggleButton(Rectangle{20.0f, 20.0f, 180.0f, 40.0f}, "Hide all spheres");
+    Button xButton(Rectangle{20.0f, 70.0f, 180.0f, 40.0f}, "X axis");
+    Button yButton(Rectangle{20.0f, 120.0f, 180.0f, 40.0f}, "Y axis");
+    Button zButton(Rectangle{20.0f, 170.0f, 180.0f, 40.0f}, "Z axis");
+    Button dButton(Rectangle{20.0f, 220.0f, 180.0f, 40.0f}, "3D");
+    Button HighlightButtonx(Rectangle{20.0f, 270.0f, 180.0f, 40.0f}, "Y-Z Highlight");
+    Button HighlightButtony(Rectangle{20.0f, 320.0f, 180.0f, 40.0f}, "X-Z Highlight");
+    Button HighlightButtonz(Rectangle{20.0f, 370.0f, 180.0f, 40.0f}, "X-Y Highlight");
 
     std::vector<Button> NumberButton;
     for (int i = 0; i <= 9; ++i)
     {
-        NumberButton.push_back(Button(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, std::to_string(i)));
+        NumberButton.push_back(Button(Rectangle{20.0f, (520.0f + i * 50.0f), 180.0f, 40.0f}, std::to_string(i)));
     }
     NumberButton[0].SetText("Reset");
 
@@ -271,7 +245,7 @@ int RunGame(Client *client)
 
     if (client)
     {
-        client->initGameState();
+		client->initGameState();
     }
 
     double gameOverTime = 0.0;
@@ -279,59 +253,6 @@ int RunGame(Client *client)
 
     while (!WindowShouldClose())
     {
-        const int screenWidth = GetScreenWidth();
-        const int screenHeight = GetScreenHeight();
-
-        const float margin = std::max(16.0f, screenWidth * 0.02f);
-        const float baseBtnHeight = std::max(32.0f, screenHeight * 0.04f);
-        const float baseSpacing = std::max(6.0f, screenHeight * 0.01f);
-        const int mainBtnCount = 8;
-        const int numberBtnCount = static_cast<int>(NumberButton.size());
-        const float sectionGap = baseSpacing;
-        float baseTotalHeight = mainBtnCount * baseBtnHeight + numberBtnCount * baseBtnHeight +
-                                ((mainBtnCount - 1) + (numberBtnCount - 1)) * baseSpacing + sectionGap;
-        float usableHeight = static_cast<float>(screenHeight) - 2.0f * margin;
-        float scale = std::min(1.0f, usableHeight / baseTotalHeight);
-        bool showNumberButtons = true;
-        if (scale < 0.6f)
-        {
-            showNumberButtons = false;
-            baseTotalHeight = mainBtnCount * baseBtnHeight + (mainBtnCount - 1) * baseSpacing;
-            scale = std::max(usableHeight / baseTotalHeight, 0.6f);
-        }
-        const float btnHeight = baseBtnHeight * scale;
-        const float btnSpacing = baseSpacing * scale;
-        const float btnWidth = std::max(140.0f, screenWidth * 0.12f);
-        const int btnFontSize = static_cast<int>(std::max(12.0f, btnHeight * 0.45f));
-        float nextY = margin;
-
-        auto setButton = [&](Button &btn)
-        {
-            btn.SetBounds(Rectangle{margin, nextY, btnWidth, btnHeight});
-            btn.SetFontSize(btnFontSize);
-            nextY += btnHeight + btnSpacing;
-        };
-
-        setButton(toggleButton);
-        setButton(xButton);
-        setButton(yButton);
-        setButton(zButton);
-        setButton(dButton);
-        setButton(HighlightButtonx);
-        setButton(HighlightButtony);
-        setButton(HighlightButtonz);
-        nextY += sectionGap;
-
-        if (showNumberButtons)
-        {
-            for (int i = 0; i <= 9; ++i)
-            {
-                NumberButton[static_cast<size_t>(i)].SetBounds(Rectangle{margin, nextY, btnWidth, btnHeight});
-                NumberButton[static_cast<size_t>(i)].SetFontSize(btnFontSize);
-                nextY += btnHeight + btnSpacing;
-            }
-        }
-
         if (client && !client->isGameRunning() && !gameEnded)
         {
             gameEnded = true;
@@ -344,33 +265,25 @@ int RunGame(Client *client)
             {
                 break;
             }
-
+            
             BeginDrawing();
             ClearBackground(BLACK);
-
+            
             int result = client->getGameResult();
-            const int resultFont = static_cast<int>(std::clamp(screenHeight * 0.07f, 32.0f, 72.0f));
-            const int infoFont = static_cast<int>(std::clamp(screenHeight * 0.03f, 18.0f, 32.0f));
-            const char *resultText = "GAME INTERRUPTED";
-            Color resultColor = ORANGE;
             if (result == 1)
             {
-                resultText = "YOU WIN!";
-                resultColor = GREEN;
+                DrawText("YOU WIN!", screenWidth / 2 - 150, screenHeight / 2 - 50, 60, GREEN);
             }
             else if (result == 2)
             {
-                resultText = "YOU LOSE!";
-                resultColor = RED;
+                DrawText("YOU LOSE!", screenWidth / 2 - 150, screenHeight / 2 - 50, 60, RED);
             }
-            int resultWidth = MeasureText(resultText, resultFont);
-            int resultX = screenWidth / 2 - resultWidth / 2;
-            int resultY = screenHeight / 2 - resultFont;
-            DrawText(resultText, resultX, resultY, resultFont, resultColor);
-
-            const char *infoText = "Returning to lobby in 3 seconds...";
-            int infoWidth = MeasureText(infoText, infoFont);
-            DrawText(infoText, screenWidth / 2 - infoWidth / 2, resultY + resultFont + infoFont, infoFont, WHITE);
+            else
+            {
+                DrawText("GAME INTERRUPTED", screenWidth / 2 - 200, screenHeight / 2 - 50, 50, ORANGE);
+            }
+            
+            DrawText("Returning to lobby in 3 seconds...", screenWidth / 2 - 250, screenWidth / 2 + 50, 24, WHITE);
             EndDrawing();
             continue;
         }
@@ -547,7 +460,7 @@ int RunGame(Client *client)
 
             if (highlightPlaneActive && closestGreyIndex != std::numeric_limits<std::size_t>::max() && closestGreyDistSq < 800)
             {
-                SphereInstance &highlighted = spheres[closestGreyIndex];
+                SphereInstance& highlighted = spheres[closestGreyIndex];
                 Color highlightColor = YELLOW;
                 highlightColor.a = highlighted.color.a;
                 highlighted.color = highlightColor;
@@ -574,56 +487,41 @@ int RunGame(Client *client)
 
             if (!spheres.empty())
             {
-                std::sort(spheres.begin(), spheres.end(), [](const SphereInstance &a, const SphereInstance &b)
+                std::sort(spheres.begin(), spheres.end(), [](const SphereInstance& a, const SphereInstance& b)
                           { return a.distanceToCamera > b.distanceToCamera; });
 
                 rlDisableDepthMask();
-                for (const auto &sphere : spheres)
+                for (const auto& sphere : spheres)
                     DrawSphere(sphere.position, SphereRadius, sphere.color);
                 rlEnableDepthMask();
             }
         }
         EndMode3D();
         int currentPlayer = ((gameStep - 1) % 2) + 1;
-
-        Vector2 xPos = GetWorldToScreen(Vector3{Axis_length, 0.0f, 0.0f}, camera);
-        Vector2 yPos = GetWorldToScreen(Vector3{0.0f, Axis_length, 0.0f}, camera);
-        Vector2 zPos = GetWorldToScreen(Vector3{0.0f, 0.0f, Axis_length}, camera);
-        const int axisFont = static_cast<int>(std::clamp(screenHeight * 0.02f, 14.0f, 22.0f));
-        DrawText("x", static_cast<int>(xPos.x), static_cast<int>(xPos.y), axisFont, RED);
-        DrawText("y", static_cast<int>(yPos.x), static_cast<int>(yPos.y), axisFont, GREEN);
-        DrawText("z", static_cast<int>(zPos.x), static_cast<int>(zPos.y), axisFont, BLUE);
-
-        const float hudMargin = std::max(20.0f, screenWidth * 0.02f);
-        const float turnRadius = std::clamp(screenHeight * 0.03f, 20.0f, 36.0f);
-        const int turnFont = static_cast<int>(std::clamp(screenHeight * 0.025f, 16.0f, 28.0f));
-        const int stepFont = static_cast<int>(std::clamp(screenHeight * 0.04f, 30.0f, 52.0f));
-        const int bottomFont = static_cast<int>(std::clamp(screenHeight * 0.032f, 18.0f, 40.0f));
-
-        Vector2 turnCircleCenter{screenWidth - hudMargin - turnRadius, hudMargin + turnRadius};
-        DrawCircleV(turnCircleCenter, turnRadius, typeColor[currentPlayer]);
-
-        float turnTextX = std::max(hudMargin, turnCircleCenter.x - std::max(220.0f, screenWidth * 0.18f));
-        float turnTextY = hudMargin;
+        DrawCircle(1900, 60, 30, typeColor[currentPlayer]);
+        DrawText(std::to_string(gameStep).c_str(), 1850, 1230, 50, WHITE);
+        
         if (client)
         {
             if (client->isMyTurn())
-                DrawText("Your Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, GREEN);
+                DrawText("Your Turn", 1650, 60, 20, GREEN);
             else
-                DrawText("Opponent's Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, ORANGE);
+                DrawText("Opponent's Turn", 1650, 60, 20, ORANGE);
         }
         else
         {
             if (currentPlayer == 1)
-                DrawText("BLUE's Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, WHITE);
+                DrawText("BLUE's Turn", 1650, 60, 20, WHITE);
             else
-                DrawText("RED's Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, WHITE);
+                DrawText("RED's Turn", 1650, 60, 20, WHITE);
         }
-
-        float stepX = screenWidth - hudMargin - stepFont * 1.5f;
-        float stepY = screenHeight - hudMargin - stepFont * 1.5f;
-        DrawText(std::to_string(gameStep).c_str(), static_cast<int>(stepX), static_cast<int>(stepY), stepFont, WHITE);
-
+        
+        Vector2 xPos = GetWorldToScreen(Vector3{Axis_length, 0.0f, 0.0f}, camera);
+        Vector2 yPos = GetWorldToScreen(Vector3{0.0f, Axis_length, 0.0f}, camera);
+        Vector2 zPos = GetWorldToScreen(Vector3{0.0f, 0.0f, Axis_length}, camera);
+        DrawText("x", (int)xPos.x, (int)xPos.y, 20, RED);
+        DrawText("y", (int)yPos.x, (int)yPos.y, 20, GREEN);
+        DrawText("z", (int)zPos.x, (int)zPos.y, 20, BLUE);
         if (vmode == 0)
         {
             BottomText = "3D View   ";
@@ -659,13 +557,10 @@ int RunGame(Client *client)
                     BottomText += " Z=" + std::to_string(number) + " Plane";
             }
         }
-
-        float bottomY = screenHeight - hudMargin - bottomFont - 4.0f;
         if (showSpheres)
-            DrawText((BottomText + AddText).c_str(), static_cast<int>(hudMargin), static_cast<int>(bottomY), bottomFont, WHITE);
+            DrawText((BottomText + AddText).c_str(), 40, 1230, 40, WHITE);
         else
-            DrawText((BottomText + "(Hidden)").c_str(), static_cast<int>(hudMargin), static_cast<int>(bottomY), bottomFont, WHITE);
-
+            DrawText((BottomText + "(Hidden)").c_str(), 40, 1230, 40, WHITE);
         if (toggleButton.Draw())
         {
             showSpheres = !showSpheres;
@@ -740,7 +635,7 @@ int RunGame(Client *client)
                 hlmode = 3;
             }
         }
-        if ((hlmode != 0 || vmode != 0) && showNumberButtons)
+        if (hlmode != 0 || vmode != 0)
         {
             if (NumberButton[0].Draw())
             {
@@ -748,7 +643,7 @@ int RunGame(Client *client)
                 number = 0;
             }
             for (int i = 1; i <= BoardSize; ++i)
-                if (NumberButton[static_cast<size_t>(i)].Draw())
+                if (NumberButton[i].Draw())
                     number = i;
         }
 

@@ -23,22 +23,21 @@ bool OnlineInitChessBoard(char **pChessBoard, int BoardSize)
 	return true;
 }
 
-//输入棋子位置
 void NativeGetChessPosition(int input[])
 {
 	while (true)
 	{
-		if (!(cin >> input[0] >> input[1] >> input[2]))
+		std::cout << "Enter move (x y z): ";
+		if (std::cin >> input[0] >> input[1] >> input[2])
 		{
-			cin.clear();
-			cin.ignore(numeric_limits<streamsize>::max(), '\n');
-			continue;
+			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+			break;
 		}
-		break;
+		std::cout << "Invalid input, please enter three integers." << std::endl;
+		std::cin.clear();
+		std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 	}
 }
-
-
 
 //新函数：接受棋局描述，检查位置合法性，如果合法则更新棋局，否则输出非法标记
 bool UpdateBoardState(int BoardSize, char *ChessBoard, int input[], char player)
