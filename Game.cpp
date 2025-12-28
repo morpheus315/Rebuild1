@@ -721,8 +721,47 @@ int RunGame(Client* client)
                     DrawSphere(sphere.position, SphereRadius, sphere.color);
                 rlEnableDepthMask();
             }
-        }
 
+            // 同方相邻棋子连线（仅3D视图，使用细圆柱，含斜向邻接）
+            if (vmode == 0 && showSpheres)
+            {
+                const float lineRadius = SphereRadius * 0.2f;
+                for (int i = 1; i <= BoardSize; ++i)
+                    for (int j = 1; j <= BoardSize; ++j)
+                        for (int k = 1; k <= BoardSize; ++k)
+                        {
+                            int colorId = ColorBoard[i][j][k];
+                            if (colorId == 0) continue;
+
+                            Vector3 posA{ SphereDist * i - posDelta,
+                                          SphereDist * j - posDelta,
+                                          SphereDist * k - posDelta };
+                            Color lineColor = typeColor[colorId];
+                            lineColor.a = 200;
+
+                            for (int dx = -1; dx <= 1; ++dx)
+                                for (int dy = -1; dy <= 1; ++dy)
+                                    for (int dz = -1; dz <= 1; ++dz)
+                                    {
+                                        if (dx == 0 && dy == 0 && dz == 0) continue;
+                                        // 只连向正方向避免重复
+                                        if (dx < 0) continue;
+                                        if (dx == 0 && dy < 0) continue;
+                                        if (dx == 0 && dy == 0 && dz < 0) continue;
+
+                                        int ni = i + dx, nj = j + dy, nk = k + dz;
+                                        if (ni < 1 || ni > BoardSize || nj < 1 || nj > BoardSize || nk < 1 || nk > BoardSize)
+                                            continue;
+                                        if (ColorBoard[ni][nj][nk] != colorId) continue;
+
+                                        Vector3 posB{ SphereDist * ni - posDelta,
+                                                      SphereDist * nj - posDelta,
+                                                      SphereDist * nk - posDelta };
+                                        DrawCylinderEx(posA, posB, lineRadius, lineRadius, 8, lineColor);
+                                    }
+                        }
+            }
+        }
         EndMode3D();
         int currentPlayer = ((gameStep - 1) % 2) + 1;
 
