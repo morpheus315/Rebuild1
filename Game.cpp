@@ -725,7 +725,7 @@ int RunGame(Client* client)
             // 同方相邻棋子连线（仅3D视图，使用细圆柱，含斜向邻接）
             if (vmode == 0 && showSpheres)
             {
-                const float lineRadius = SphereRadius * 0.2f;
+                const float lineRadius = SphereRadius * 0.12f;
                 for (int i = 1; i <= BoardSize; ++i)
                     for (int j = 1; j <= BoardSize; ++j)
                         for (int k = 1; k <= BoardSize; ++k)
