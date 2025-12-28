@@ -201,8 +201,8 @@ float d2r(float degree)
 
 int RunGame(Client *client)
 {
-    const int screenWidth = 1980;
-    const int screenHeight = 1280;
+    int screenWidth = 1980;
+    int screenHeight = 1280;
 
     SetWindowSize(screenWidth, screenHeight);
     SetWindowTitle("3D Chess Online - Game");
@@ -272,6 +272,9 @@ int RunGame(Client *client)
 
     while (!WindowShouldClose())
     {
+        screenWidth = GetScreenWidth();
+        screenHeight = GetScreenHeight();
+
         if (client && !client->isGameRunning() && !gameEnded)
         {
             gameEnded = true;
@@ -517,30 +520,44 @@ int RunGame(Client *client)
         }
         EndMode3D();
         int currentPlayer = ((gameStep - 1) % 2) + 1;
-        DrawCircle(1900, 60, 30, typeColor[currentPlayer]);
-        DrawText(std::to_string(gameStep).c_str(), 1850, 1230, 50, WHITE);
-        
+
+        const float hudMargin = std::max(20.0f, screenWidth * 0.02f);
+        const float turnRadius = std::clamp(screenHeight * 0.03f, 20.0f, 36.0f);
+        const int turnFont = static_cast<int>(std::clamp(screenHeight * 0.025f, 16.0f, 28.0f));
+        const int stepFont = static_cast<int>(std::clamp(screenHeight * 0.04f, 30.0f, 52.0f));
+        const int bottomFont = static_cast<int>(std::clamp(screenHeight * 0.032f, 18.0f, 40.0f));
+        const int axisFont = static_cast<int>(std::clamp(screenHeight * 0.02f, 14.0f, 22.0f));
+
+        Vector2 turnCircleCenter{screenWidth - hudMargin - turnRadius, hudMargin + turnRadius};
+        DrawCircleV(turnCircleCenter, turnRadius, typeColor[currentPlayer]);
+
+        float turnTextX = std::max(hudMargin, turnCircleCenter.x - std::max(220.0f, screenWidth * 0.18f));
+        float turnTextY = hudMargin;
         if (client)
         {
             if (client->isMyTurn())
-                DrawText("Your Turn", 1650, 60, 20, GREEN);
+                DrawText("Your Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, GREEN);
             else
-                DrawText("Opponent's Turn", 1650, 60, 20, ORANGE);
+                DrawText("Opponent's Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, ORANGE);
         }
         else
         {
             if (currentPlayer == 1)
-                DrawText("BLUE's Turn", 1650, 60, 20, WHITE);
+                DrawText("BLUE's Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, WHITE);
             else
-                DrawText("RED's Turn", 1650, 60, 20, WHITE);
+                DrawText("RED's Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, WHITE);
         }
-        
+
+        float stepX = screenWidth - hudMargin - stepFont * 1.5f;
+        float stepY = screenHeight - hudMargin - stepFont * 1.5f;
+        DrawText(std::to_string(gameStep).c_str(), static_cast<int>(stepX), static_cast<int>(stepY), stepFont, WHITE);
+
         Vector2 xPos = GetWorldToScreen(Vector3{Axis_length, 0.0f, 0.0f}, camera);
         Vector2 yPos = GetWorldToScreen(Vector3{0.0f, Axis_length, 0.0f}, camera);
         Vector2 zPos = GetWorldToScreen(Vector3{0.0f, 0.0f, Axis_length}, camera);
-        DrawText("x", (int)xPos.x, (int)xPos.y, 20, RED);
-        DrawText("y", (int)yPos.x, (int)yPos.y, 20, GREEN);
-        DrawText("z", (int)zPos.x, (int)zPos.y, 20, BLUE);
+        DrawText("x", static_cast<int>(xPos.x), static_cast<int>(xPos.y), axisFont, RED);
+        DrawText("y", static_cast<int>(yPos.x), static_cast<int>(yPos.y), axisFont, GREEN);
+        DrawText("z", static_cast<int>(zPos.x), static_cast<int>(zPos.y), axisFont, BLUE);
         if (vmode == 0)
         {
             BottomText = "3D View   ";
@@ -576,10 +593,11 @@ int RunGame(Client *client)
                     BottomText += " Z=" + std::to_string(number) + " Plane";
             }
         }
+        float bottomY = screenHeight - hudMargin - bottomFont - 4.0f;
         if (showSpheres)
-            DrawText((BottomText + AddText).c_str(), 40, 1230, 40, WHITE);
+            DrawText((BottomText + AddText).c_str(), static_cast<int>(hudMargin), static_cast<int>(bottomY), bottomFont, WHITE);
         else
-            DrawText((BottomText + "(Hidden)").c_str(), 40, 1230, 40, WHITE);
+            DrawText((BottomText + "(Hidden)").c_str(), static_cast<int>(hudMargin), static_cast<int>(bottomY), bottomFont, WHITE);
         if (toggleButton.Draw())
         {
             showSpheres = !showSpheres;
