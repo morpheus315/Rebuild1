@@ -16,47 +16,72 @@
 #include <raymath.h>
 #include <rlgl.h>
 
+/**
+ * @brief 匹配对手界面
+ * 
+ * 显示可用的对等节点列表和待处理的匹配请求
+ * 提供以下功能：
+ * - 发现局域网内的其他玩家（10秒）
+ * - 向选中的玩家发送匹配请求
+ * - 接受或拒绝收到的匹配请求
+ * - 退出到主菜单
+ * 
+ * @param client 游戏客户端引用
+ * @param node 局域网P2P节点引用
+ * @return true 匹配成功，false 用户退出
+ */
 bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
 {
+    // ========== 创建UI按钮 ==========
     Button discoverBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Discover (10s)");
     Button requestBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Request Match");
     Button acceptBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Accept");
     Button rejectBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Reject");
     Button exitBtn(Rectangle{0.0f, 0.0f, 0.0f, 0.0f}, "Exit");
 
-    int selectedPeer = -1;
-    int selectedPending = -1;
-    std::string status = "Idle";
+    // ========== 状态变量 ==========
+    int selectedPeer = -1;       // 选中的对等节点索引（-1表示未选中）
+    int selectedPending = -1;    // 选中的待处理请求索引
+    std::string status = "Idle"; // 状态栏文本
 
-    bool discoveryActive = false;
-    double discoveryEndTime = 0.0;
+    bool discoveryActive = false;  // 是否正在发现节点
+    double discoveryEndTime = 0.0; // 发现结束时间
 
+    // ========== 主循环 ==========
     while (!WindowShouldClose())
     {
+        // 获取窗口尺寸
         const int screenWidth = GetScreenWidth();
         const int screenHeight = GetScreenHeight();
-        const float margin = std::max(16.0f, screenWidth * 0.02f);
-        const float spacing = std::max(8.0f, screenWidth * 0.01f);
-        float btnHeight = std::max(44.0f, screenHeight * 0.065f);
-        float btnWidth = (screenWidth - margin * 2.0f - spacing * 4.0f) / 5.0f;
+        
+        // 计算UI布局参数（响应式设计）
+        const float margin = std::max(16.0f, screenWidth * 0.02f);    // 边距
+        const float spacing = std::max(8.0f, screenWidth * 0.01f);    // 间距
+        float btnHeight = std::max(44.0f, screenHeight * 0.065f);     // 按钮高度
+        float btnWidth = (screenWidth - margin * 2.0f - spacing * 4.0f) / 5.0f;  // 按钮宽度
         btnWidth = std::max(140.0f, btnWidth);
         const int btnFontSize = static_cast<int>(std::max(18.0f, btnHeight * 0.5f));
         const float topY = margin;
 
+        // 设置按钮位置和大小
         discoverBtn.SetBounds(Rectangle{margin, topY, btnWidth, btnHeight});
         requestBtn.SetBounds(Rectangle{margin + (btnWidth + spacing) * 1.0f, topY, btnWidth, btnHeight});
         acceptBtn.SetBounds(Rectangle{margin + (btnWidth + spacing) * 2.0f, topY, btnWidth, btnHeight});
         rejectBtn.SetBounds(Rectangle{margin + (btnWidth + spacing) * 3.0f, topY, btnWidth, btnHeight});
         exitBtn.SetBounds(Rectangle{margin + (btnWidth + spacing) * 4.0f, topY, btnWidth, btnHeight});
+        
+        // 设置按钮字体大小
         discoverBtn.SetFontSize(btnFontSize);
         requestBtn.SetFontSize(btnFontSize);
         acceptBtn.SetFontSize(btnFontSize);
         rejectBtn.SetFontSize(btnFontSize);
         exitBtn.SetFontSize(btnFontSize);
 
+        // 如果已经匹配成功，退出循环
         if (client.isInMatch())
             break;
 
+        // 检查发现是否超时（10秒后自动停止）
         if (discoveryActive && GetTime() >= discoveryEndTime)
         {
             node.stopUdpListen();
@@ -64,23 +89,32 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
             status = "Discovery stopped";
         }
 
+        // 获取当前数据
         const Vector2 mouse = GetMousePosition();
-        auto peers = client.getAvailablePeers();
-        auto pending = client.getPendingRequestsSnapshot();
+        auto peers = client.getAvailablePeers();          // 可用节点列表
+        auto pending = client.getPendingRequestsSnapshot(); // 待处理请求列表
+        
+        // 验证选中索引的有效性
         if (selectedPeer >= static_cast<int>(peers.size()))
             selectedPeer = -1;
         if (selectedPending >= static_cast<int>(pending.size()))
             selectedPending = -1;
 
+        // ========== 开始绘制 ==========
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
+        // 绘制标题和信息
         const float headerY = topY + btnHeight + margin;
         DrawText("Match Panel", static_cast<int>(margin), static_cast<int>(headerY), 28, DARKGRAY);
-        DrawText(TextFormat("Local ID:%s  TCP:%d  Discovery:%d", node.getNodeId().c_str(), node.getTcpPort(), node.getDiscoveryPort()),
+        DrawText(TextFormat("Local ID:%s  TCP:%d  Discovery:%d", 
+                 node.getNodeId().c_str(), node.getTcpPort(), node.getDiscoveryPort()),
                  static_cast<int>(margin), screenHeight - 70, 22, DARKGRAY);
         DrawText(status.c_str(), static_cast<int>(margin), screenHeight - 40, 24, BLACK);
 
+        // ========== 处理按钮点击 ==========
+        
+        // 发现按钮：开始10秒的节点发现
         if (discoverBtn.Draw())
         {
             if (!discoveryActive)
@@ -92,30 +126,37 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
             }
         }
 
+        // 请求匹配按钮：向选中的节点发送匹配请求
         if (requestBtn.Draw())
         {
             if (selectedPeer >= 0 && selectedPeer < static_cast<int>(peers.size()))
-                status = client.requestMatch(peers[static_cast<size_t>(selectedPeer)]) ? "Match request sent" : "Match request failed";
+                status = client.requestMatch(peers[static_cast<size_t>(selectedPeer)]) ? 
+                         "Match request sent" : "Match request failed";
             else
                 status = "Select a peer";
         }
 
+        // 接受按钮：接受选中的匹配请求
         if (acceptBtn.Draw())
         {
             if (selectedPending >= 0 && selectedPending < static_cast<int>(pending.size()))
-                status = client.respondToPendingRequest(pending[static_cast<size_t>(selectedPending)], true) ? "Request accepted" : "Request expired";
+                status = client.respondToPendingRequest(pending[static_cast<size_t>(selectedPending)], true) ? 
+                         "Request accepted" : "Request expired";
             else
                 status = "No request selected";
         }
 
+        // 拒绝按钮：拒绝选中的匹配请求
         if (rejectBtn.Draw())
         {
             if (selectedPending >= 0 && selectedPending < static_cast<int>(pending.size()))
-                status = client.respondToPendingRequest(pending[static_cast<size_t>(selectedPending)], false) ? "Request rejected" : "Request expired";
+                status = client.respondToPendingRequest(pending[static_cast<size_t>(selectedPending)], false) ? 
+                         "Request rejected" : "Request expired";
             else
                 status = "No request selected";
         }
 
+        // 退出按钮：返回主菜单
         if (exitBtn.Draw())
         {
             if (discoveryActive)
@@ -126,50 +167,78 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
             return false;
         }
 
+        // ========== 绘制可用节点列表 ==========
         DrawText("Available peers", static_cast<int>(margin), 120, 24, BLACK);
         float peerY = 152.0f;
+        
         for (size_t i = 0; i < peers.size(); ++i)
         {
+            // 创建列表项矩形
             Rectangle item{margin, peerY, static_cast<float>(screenWidth - margin * 2.0f), 40.0f};
             bool hover = CheckCollisionPointRec(mouse, item);
+            
+            // 根据状态选择颜色（选中/悬停/正常）
             Color fill = (selectedPeer == static_cast<int>(i)) ? Fade(GREEN, 0.35f) : Fade(LIGHTGRAY, 0.35f);
             if (hover)
                 fill = Fade(ORANGE, 0.35f);
+            
+            // 绘制列表项
             DrawRectangleRec(item, fill);
             DrawRectangleLinesEx(item, 1.0f, DARKGRAY);
-            std::string label = std::to_string(i + 1) + ". " + (peers[i].name.empty() ? peers[i].id : peers[i].name) +
-                                 " (" + peers[i].ip + ":" + std::to_string(peers[i].tcpPort) + ")";
+            
+            // 显示节点信息：序号 + 名称或ID + IP:端口
+            std::string label = std::to_string(i + 1) + ". " + 
+                                (peers[i].name.empty() ? peers[i].id : peers[i].name) +
+                                " (" + peers[i].ip + ":" + std::to_string(peers[i].tcpPort) + ")";
             DrawText(label.c_str(), static_cast<int>(item.x) + 8, static_cast<int>(item.y) + 8, 22, BLACK);
+            
+            // 处理点击选中
             if (hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
                 selectedPeer = static_cast<int>(i);
+            
             peerY += 44.0f;
         }
 
+        // ========== 绘制待处理请求列表 ==========
         float pendingStart = peerY + 24.0f;
         if (pendingStart < 340.0f)
             pendingStart = 340.0f;
         DrawText("Pending requests", static_cast<int>(margin), static_cast<int>(pendingStart), 24, BLACK);
         float pendingY = pendingStart + 32.0f;
+        
         for (size_t i = 0; i < pending.size(); ++i)
         {
+            // 创建列表项矩形
             Rectangle item{margin, pendingY, static_cast<float>(screenWidth - margin * 2.0f), 40.0f};
             bool hover = CheckCollisionPointRec(mouse, item);
+            
+            // 根据状态选择颜色
             Color fill = (selectedPending == static_cast<int>(i)) ? Fade(SKYBLUE, 0.35f) : Fade(LIGHTGRAY, 0.35f);
             if (hover)
                 fill = Fade(ORANGE, 0.35f);
+            
+            // 绘制列表项
             DrawRectangleRec(item, fill);
             DrawRectangleLinesEx(item, 1.0f, DARKGRAY);
-            std::string label = std::to_string(i + 1) + ". " + (pending[i].peer.name.empty() ? pending[i].peer.id : pending[i].peer.name) +
-                                 " (" + pending[i].ip + ":" + std::to_string(pending[i].port) + ") id=" + pending[i].matchId.substr(0, 6);
+            
+            // 显示请求信息：序号 + 请求者名称/ID + IP:端口 + 匹配ID前6位
+            std::string label = std::to_string(i + 1) + ". " + 
+                                (pending[i].peer.name.empty() ? pending[i].peer.id : pending[i].peer.name) +
+                                " (" + pending[i].ip + ":" + std::to_string(pending[i].port) + 
+                                ") id=" + pending[i].matchId.substr(0, 6);
             DrawText(label.c_str(), static_cast<int>(item.x) + 8, static_cast<int>(item.y) + 8, 22, BLACK);
+            
+            // 处理点击选中
             if (hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
                 selectedPending = static_cast<int>(i);
+            
             pendingY += 44.0f;
         }
 
         EndDrawing();
     }
 
+    // 清理：如果发现仍在进行，停止它
     if (discoveryActive)
     {
         node.stopUdpListen();
@@ -179,20 +248,31 @@ bool SeekPeer(Client &client, lanp2p::LanP2PNode &node)
     return client.isInMatch();
 }
 
+/**
+ * @brief 匿名命名空间：游戏内部使用的常量和结构体
+ */
 namespace
 {
-constexpr int BoardSize = 9;
+constexpr int BoardSize = 9;  // 棋盘大小：9x9x9
 
+/**
+ * @brief 球体实例结构体
+ * 
+ * 用于表示棋盘上的一个格子位置（以球体显示）
+ */
 struct SphereInstance
 {
-    Vector3 position;
-    Color color;
-    float distanceToCamera;
-    int i;
-    int j;
-    int k;
+    Vector3 position;         // 3D空间位置
+    Color color;              // 颜色（包含透明度）
+    float distanceToCamera;   // 到相机的距离（用于排序）
+    int i, j, k;             // 棋盘逻辑坐标
 };
 
+/**
+ * @brief 角度转弧度
+ * @param degree 角度值
+ * @return 弧度值
+ */
 float d2r(float degree)
 {
     return degree * 3.1415926f / 180.0f;
