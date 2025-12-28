@@ -442,7 +442,7 @@ int RunGame(Client* client)
                 // 本地模式
                 if (localWinner == 1)
                 {
-                    DrawText("BLUE WINS!", screenWidth / 2 - 180, screenHeight / 2 - 50, 60, BLUE);
+                    DrawText("BLUE WINS!", screenWidth / 2 - 160, screenHeight / 2 - 50, 60, BLUE);
                 }
                 else if (localWinner == 2)
                 {
