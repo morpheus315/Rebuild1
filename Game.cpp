@@ -1025,3 +1025,49 @@ int RunGame(Client* client)
 
     return userClosedWindow ? -1 : 0;  // -1:关闭窗口, 0:正常退出
 }
+
+// 模式选择界面：在线 / 本地 / 退出
+int SelectMode()
+{
+    SetWindowSize(900, 600);
+    SetWindowTitle("3D Chess Online - Select Mode");
+
+    Button onlineBtn(Rectangle{0,0,0,0}, "Online Match");
+    Button localBtn(Rectangle{0,0,0,0}, "Local Game");
+    Button exitBtn(Rectangle{0,0,0,0}, "Exit");
+
+    while (!WindowShouldClose())
+    {
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+        float margin = std::max(20.0f, sw * 0.08f);
+        float spacing = std::max(18.0f, sw * 0.04f);
+        float btnWidth = std::max(200.0f, sw * 0.25f);
+        float btnHeight = std::max(70.0f, sh * 0.12f);
+        float centerX = sw * 0.5f;
+        float topY = sh * 0.35f;
+        int fontSize = static_cast<int>(std::max(26.0f, btnHeight * 0.4f));
+
+        onlineBtn.SetBounds(Rectangle{ centerX - btnWidth - spacing * 0.5f, topY, btnWidth, btnHeight });
+        localBtn.SetBounds(Rectangle{ centerX + spacing * 0.5f, topY, btnWidth, btnHeight });
+        exitBtn.SetBounds(Rectangle{ centerX - btnWidth * 0.5f, topY + btnHeight + spacing, btnWidth, btnHeight * 0.8f });
+
+        onlineBtn.SetFontSize(fontSize);
+        localBtn.SetFontSize(fontSize);
+        exitBtn.SetFontSize(static_cast<int>(fontSize * 0.8f));
+
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+
+        const char* title = "Select Game Mode";
+        int titleSize = static_cast<int>(std::max(32.0f, sh * 0.06f));
+        DrawText(title, (sw - MeasureText(title, titleSize)) / 2, static_cast<int>(topY * 0.4f), titleSize, BLACK);
+
+        if (onlineBtn.Draw()) return 1;
+        if (localBtn.Draw()) return 2;
+        if (exitBtn.Draw()) return 0;
+
+        EndDrawing();
+    }
+    return 0;
+}

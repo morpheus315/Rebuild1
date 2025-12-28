@@ -155,7 +155,19 @@ int main()
     
     while (true)
     {
-        // 设置匹配大厅窗口
+        int mode = SelectMode();
+        if (mode == 0 || WindowShouldClose())
+            break;
+
+        if (mode == 2)  // 本地双人
+        {
+            int gameResult = RunGame(nullptr);
+            if (gameResult == -1 || WindowShouldClose())
+                break;
+            continue;
+        }
+
+        // 在线模式
         SetWindowSize(1280, 720);
         SetWindowTitle("3D Chess Online - Match Lobby");
 

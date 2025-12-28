@@ -1,6 +1,6 @@
 #pragma once
 
-// 前向声明，避免头文件循环依赖
+// 前置声明防止头文件循环依赖
 class Client;
 namespace lanp2p
 {
@@ -8,7 +8,13 @@ namespace lanp2p
 }
 
 /**
- * @brief 匹配对手界面
+ * @brief 模式选择界面
+ * @return 0退出，1在线对战，2本地双人
+ */
+int SelectMode();
+
+/**
+ * @brief ?????????
  * 
  * 显示匹配大厅，允许玩家：
  * - 发现局域网内的其他玩家
