@@ -2,6 +2,7 @@
 #include "LanP2PNode.h"
 #include "Button.h"
 #include "GameClient.h"
+#include "chess-game.h"
 
 #include <algorithm>
 #include <atomic>
@@ -393,6 +394,7 @@ int RunGame(Client* client)
     // ========== 游戏结束相关 ==========
     double gameOverTime = 0.0;  // 游戏结束的时间戳
     bool gameEnded = false;     // 游戏是否已结束
+    int localWinner = 0;        // 本地模式获胜者（0:未结束, 1:蓝色, 2:红色）
 
     // ========== 主游戏循环 ==========
     while (!WindowShouldClose())
@@ -418,21 +420,37 @@ int RunGame(Client* client)
             ClearBackground(BLACK);
 
             // 根据游戏结果显示不同信息
-            int result = client->getGameResult();
-            if (result == 1)
+            if (client)
             {
-                DrawText("YOU WIN!", screenWidth / 2 - 150, screenHeight / 2 - 50, 60, GREEN);
-            }
-            else if (result == 2)
-            {
-                DrawText("YOU LOSE!", screenWidth / 2 - 150, screenHeight / 2 - 50, 60, RED);
+                // 在线模式
+                int result = client->getGameResult();
+                if (result == 1)
+                {
+                    DrawText("YOU WIN!", screenWidth / 2 - 150, screenHeight / 2 - 50, 60, GREEN);
+                }
+                else if (result == 2)
+                {
+                    DrawText("YOU LOSE!", screenWidth / 2 - 150, screenHeight / 2 - 50, 60, RED);
+                }
+                else
+                {
+                    DrawText("GAME INTERRUPTED", screenWidth / 2 - 200, screenHeight / 2 - 50, 50, ORANGE);
+                }
             }
             else
             {
-                DrawText("GAME INTERRUPTED", screenWidth / 2 - 200, screenHeight / 2 - 50, 50, ORANGE);
+                // 本地模式
+                if (localWinner == 1)
+                {
+                    DrawText("BLUE WINS!", screenWidth / 2 - 180, screenHeight / 2 - 50, 60, BLUE);
+                }
+                else if (localWinner == 2)
+                {
+                    DrawText("RED WINS!", screenWidth / 2 - 160, screenHeight / 2 - 50, 60, RED);
+                }
             }
 
-            DrawText("Returning to lobby in 3 seconds...", screenWidth / 2 - 250, screenWidth / 2 + 50, 24, WHITE);
+            DrawText("Returning to lobby in 3 seconds...", screenWidth / 2 - 200, screenHeight / 2 + 50, 24, WHITE);
             EndDrawing();
             continue;
         }
@@ -577,8 +595,24 @@ int RunGame(Client* client)
                         bool ishighlighted = (hlmode == 1 && number == i) ||
                             (hlmode == 2 && number == j) ||
                             (hlmode == 3 && number == k);
+                        
                         // ===== 应用透明度规则 =====
-                        if(ColorBoard[i][j][k] == 0&&!ishighlighted)color.a = 40;// 空位：非常透明
+                        // 空位基础透明度：在选中的二维平面上设为较高透明度（可交互），否则非常透明
+                        if(ColorBoard[i][j][k] == 0)
+                        {
+                            // 在二维视图的选中平面上，或3D高亮模式的高亮平面上
+                            bool isOnSelectedPlane = (vmode != 0 && number != 0 && 
+                                                      ((vmode == 1 && number == i) ||
+                                                       (vmode == 2 && number == j) ||
+                                                       (vmode == 3 && number == k))) || ishighlighted;
+                            
+                            // 3D高亮模式下空位更亮，二维视图保持原样
+                            if (vmode == 0 && ishighlighted)
+                                color.a = 180;  // 3D高亮平面：180（非常明亮）
+                            else
+                                color.a = isOnSelectedPlane ? 100 : 40;  // 选中平面:100（可交互），其他:40（很透明）
+                        }
+                        
                         // 3D视图下的高亮模式：平面外的格子变暗
                         if (vmode == 0 && number != 0 && isunhighlighted && ColorBoard[i][j][k] != 0)   
                                 color.a = 150;  // 已有棋子：半透明
@@ -615,12 +649,12 @@ int RunGame(Client* client)
                             AddText = " --Mouse On (" + std::to_string(i) + "," +
                                 std::to_string(j) + "," + std::to_string(k) + ")";
 
-                            // 点击落子
+                            // 鼠标点击
                             if (ColorBoard[i][j][k] == 0 && IsMouseButtonDown(MOUSE_BUTTON_LEFT))
                             {
                                 if (client)
                                 {
-                                    // 网络对战模式：检查回合并发送
+                                    // 在线对战模式，检查回合并落子
                                     if (client->isMyTurn() && client->tryPlaceMyPiece(i, j, k))
                                     {
                                         int myColor = (client->getMyPlayer() == '1') ? 1 : 2;
@@ -630,8 +664,39 @@ int RunGame(Client* client)
                                 }
                                 else
                                 {
-                                    // 本地双人模式：轮流落子
-                                    ColorBoard[i][j][k] = (gameStep % 2 + 1);
+                                    // 本地双人模式，轮流落子
+                                    int playerColor = ((gameStep - 1) % 2 + 1);
+                                    ColorBoard[i][j][k] = playerColor;
+                                    
+                                    // 检查是否获胜（需要转换为char类型）
+                                    int coords[3] = {i, j, k};
+                                    char playerChar = (playerColor == 1) ? '1' : '2';
+                                    
+                                    // 创建临时char数组用于CheckWin
+                                    char* tempBoard = (char*)calloc(BoardSize * BoardSize * BoardSize, sizeof(char));
+                                    if (tempBoard)
+                                    {
+                                        // 将ColorBoard转换为char数组
+                                        for (int ti = 1; ti <= BoardSize; ++ti)
+                                            for (int tj = 1; tj <= BoardSize; ++tj)
+                                                for (int tk = 1; tk <= BoardSize; ++tk)
+                                                {
+                                                    int idx = place(ti, tj, tk, BoardSize);
+                                                    tempBoard[idx] = (ColorBoard[ti][tj][tk] == 1) ? '1' : 
+                                                                     (ColorBoard[ti][tj][tk] == 2) ? '2' : 0;
+                                                }
+                                        
+                                        // 检查获胜
+                                        if (CheckWin(BoardSize, tempBoard, coords, playerChar))
+                                        {
+                                            localWinner = playerColor;
+                                            gameEnded = true;
+                                            gameOverTime = GetTime();
+                                        }
+                                        
+                                        free(tempBoard);
+                                    }
+                                    
                                     ++gameStep;
                                 }
                             }
@@ -701,7 +766,39 @@ int RunGame(Client* client)
                     }
                     else
                     {
-                        ColorBoard[highlighted.i][highlighted.j][highlighted.k] = (gameStep % 2 + 1);
+                        // 本地双人模式，轮流落子
+                        int playerColor = ((gameStep - 1) % 2 + 1);
+                        ColorBoard[highlighted.i][highlighted.j][highlighted.k] = playerColor;
+                        
+                        // 检查是否获胜（需要转换为char类型）
+                        int coords[3] = {highlighted.i, highlighted.j, highlighted.k};
+                        char playerChar = (playerColor == 1) ? '1' : '2';
+                        
+                        // 创建临时char数组用于CheckWin
+                        char* tempBoard = (char*)calloc(BoardSize * BoardSize * BoardSize, sizeof(char));
+                        if (tempBoard)
+                        {
+                            // 将ColorBoard转换为char数组
+                            for (int ti = 1; ti <= BoardSize; ++ti)
+                                for (int tj = 1; tj <= BoardSize; ++tj)
+                                    for (int tk = 1; tk <= BoardSize; ++tk)
+                                    {
+                                        int idx = place(ti, tj, tk, BoardSize);
+                                        tempBoard[idx] = (ColorBoard[ti][tj][tk] == 1) ? '1' : 
+                                                         (ColorBoard[ti][tj][tk] == 2) ? '2' : 0;
+                                    }
+                                
+                            // 检查获胜
+                            if (CheckWin(BoardSize, tempBoard, coords, playerChar))
+                            {
+                                localWinner = playerColor;
+                                gameEnded = true;
+                                gameOverTime = GetTime();
+                            }
+                            
+                            free(tempBoard);
+                        }
+                        
                         ++gameStep;
                     }
                 }
