@@ -375,6 +375,8 @@ int RunGame(Client* client)
     // UI文本
     std::string BottomText = "3D View   ";
     std::string AddText;
+    bool hasLastOpponentMove = false;
+    int lastOpponentX = 0, lastOpponentY = 0, lastOpponentZ = 0;
 
     // ========== 棋盘状态数组 ==========
     // 0:空位, 1:蓝色棋子, 2:红色棋子
@@ -444,6 +446,10 @@ int RunGame(Client* client)
                 // 根据本方玩家决定对手颜色
                 int opponentColor = (client->getMyPlayer() == '1') ? 2 : 1;
                 ColorBoard[x][y][z] = opponentColor;
+                lastOpponentX = x;
+                lastOpponentY = y;
+                lastOpponentZ = z;
+                hasLastOpponentMove = true;
                 gameStep++;
             }
         }
@@ -553,6 +559,7 @@ int RunGame(Client* client)
             float closestGreyDistSq = std::numeric_limits<float>::max();
             std::size_t closestGreyIndex = std::numeric_limits<std::size_t>::max();
             const float posDelta = SphereDist * (BoardSize + 1.0f) / 2.0f;  // 偏移量（使棋盘居中）
+            Vector3 lastOpponentWorldPos{};
 
             // ===== 遍历所有格子，创建球体实例 =====
             for (int i = 1; i <= BoardSize; ++i)
@@ -567,17 +574,14 @@ int RunGame(Client* client)
                         bool isunhighlighted = (hlmode == 1 && number != i) ||
                             (hlmode == 2 && number != j) ||
                             (hlmode == 3 && number != k);
-
+                        bool ishighlighted = (hlmode == 1 && number == i) ||
+                            (hlmode == 2 && number == j) ||
+                            (hlmode == 3 && number == k);
                         // ===== 应用透明度规则 =====
-
+                        if(ColorBoard[i][j][k] == 0&&!ishighlighted)color.a = 40;// 空位：非常透明
                         // 3D视图下的高亮模式：平面外的格子变暗
-                        if (vmode == 0 && number != 0 && isunhighlighted)
-                        {
-                            if (ColorBoard[i][j][k] == 0)
-                                color.a = 40;   // 空位：非常透明
-                            else
+                        if (vmode == 0 && number != 0 && isunhighlighted && ColorBoard[i][j][k] != 0)   
                                 color.a = 150;  // 已有棋子：半透明
-                        }
 
                         // 正交视图下：只显示选中的平面
                         if (vmode != 0 && number != 0)
@@ -596,6 +600,9 @@ int RunGame(Client* client)
                             SphereDist * j - posDelta,
                             SphereDist * k - posDelta
                         };
+
+                        if (hasLastOpponentMove && client && i == lastOpponentX && j == lastOpponentY && k == lastOpponentZ)
+                            lastOpponentWorldPos = worldPos;
 
                         // 投影到屏幕坐标
                         Vector2 screenPos = GetWorldToScreen(worldPos, camera);
@@ -636,6 +643,14 @@ int RunGame(Client* client)
 
                         // 添加球体实例到列表
                         const std::size_t sphereIndex = spheres.size();
+						// 以紫色显示对手的最近落子
+                        if (i == lastOpponentX && j == lastOpponentY && k == lastOpponentZ)
+                        {
+                            int oc = (client->getMyPlayer() == '1') ? 2 : 1;
+                            color.r = (oc == 1) ? 0 : 122;
+                            color.g = 122;
+                            color.b = (oc == 2) ? 0 : 122;
+                        }
                         spheres.push_back({ worldPos, color, Vector3Distance(camera.position, worldPos), i, j, k });
 
                         // ===== 3D高亮模式：寻找最近的空位 =====
@@ -748,169 +763,168 @@ int RunGame(Client* client)
                 DrawText("RED's Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, WHITE);
         }
 
-            float stepX = screenWidth - hudMargin - stepFont * 1.5f;
-            float stepY = screenHeight - hudMargin - stepFont * 1.5f;
-            DrawText(std::to_string(gameStep).c_str(), static_cast<int>(stepX), static_cast<int>(stepY), stepFont, WHITE);
+        float stepX = screenWidth - hudMargin - stepFont * 1.5f;
+        float stepY = screenHeight - hudMargin - stepFont * 1.5f;
+        DrawText(std::to_string(gameStep).c_str(), static_cast<int>(stepX), static_cast<int>(stepY), stepFont, WHITE);
 
 
-            // ===== 绘制坐标轴标签 =====
-            Vector2 xPos = GetWorldToScreen(Vector3{ Axis_length, 0.0f, 0.0f }, camera);
-            Vector2 yPos = GetWorldToScreen(Vector3{ 0.0f, Axis_length, 0.0f }, camera);
-            Vector2 zPos = GetWorldToScreen(Vector3{ 0.0f, 0.0f, Axis_length }, camera);
-            DrawText("x", static_cast<int>(xPos.x), static_cast<int>(xPos.y), axisFont, RED);
-            DrawText("y", static_cast<int>(yPos.x), static_cast<int>(yPos.y), axisFont, GREEN);
-            DrawText("z", static_cast<int>(zPos.x), static_cast<int>(zPos.y), axisFont, BLUE);
-            if (vmode == 0)
+        // ===== 绘制坐标轴标签 =====
+        Vector2 xPos = GetWorldToScreen(Vector3{ Axis_length, 0.0f, 0.0f }, camera);
+        Vector2 yPos = GetWorldToScreen(Vector3{ 0.0f, Axis_length, 0.0f }, camera);
+        Vector2 zPos = GetWorldToScreen(Vector3{ 0.0f, 0.0f, Axis_length }, camera);
+        DrawText("x", static_cast<int>(xPos.x), static_cast<int>(xPos.y), axisFont, RED);
+        DrawText("y", static_cast<int>(yPos.x), static_cast<int>(yPos.y), axisFont, GREEN);
+        DrawText("z", static_cast<int>(zPos.x), static_cast<int>(zPos.y), axisFont, BLUE);
+        if (vmode == 0)
+        {
+            BottomText = "3D View   ";
+            if (hlmode != 0)
             {
-                BottomText = "3D View   ";
-                if (hlmode != 0)
-                {
-                    BottomText += " - Highlighting ";
-                    if (hlmode == 1)
-                        BottomText += "X";
-                    if (hlmode == 2)
-                        BottomText += "Y";
-                    if (hlmode == 3)
-                        BottomText += "Z";
-                }
-
-                if (number != 0)
-                    BottomText += "=" + std::to_string(number) + " Plane";
+                BottomText += " - Highlighting ";
+                if (hlmode == 1)
+                    BottomText += "X";
+                if (hlmode == 2)
+                    BottomText += "Y";
+                if (hlmode == 3)
+                    BottomText += "Z";
             }
-            else
+
+            if (number != 0)
+                BottomText += "=" + std::to_string(number) + " Plane";
+        }
+        else
+        {
+            if (vmode == 1)
+                BottomText = "X Axis View   ";
+            if (vmode == 2)
+                BottomText = "Y Axis View   ";
+            if (vmode == 3)
+                BottomText = "Z Axis View   ";
+
+            if (number != 0)
             {
                 if (vmode == 1)
-                    BottomText = "X Axis View   ";
+                    BottomText += " X=" + std::to_string(number) + " Plane";
                 if (vmode == 2)
-                    BottomText = "Y Axis View   ";
+                    BottomText += " Y=" + std::to_string(number) + " Plane";
                 if (vmode == 3)
-                    BottomText = "Z Axis View   ";
-
-                if (number != 0)
-                {
-                    if (vmode == 1)
-                        BottomText += " X=" + std::to_string(number) + " Plane";
-                    if (vmode == 2)
-                        BottomText += " Y=" + std::to_string(number) + " Plane";
-                    if (vmode == 3)
-                        BottomText += " Z=" + std::to_string(number) + " Plane";
-                }
+                    BottomText += " Z=" + std::to_string(number) + " Plane";
             }
-            float bottomY = screenHeight - hudMargin - bottomFont - 4.0f;
+        }
+        float bottomY = screenHeight - hudMargin - bottomFont - 4.0f;
 
-            // 绘制底部状态栏
-            if (showSpheres)
-                DrawText((BottomText + AddText).c_str(), static_cast<int>(hudMargin), static_cast<int>(bottomY), bottomFont, WHITE);
-            else
-                DrawText((BottomText + "(Hidden)").c_str(), static_cast<int>(hudMargin), static_cast<int>(bottomY), bottomFont, WHITE);
-            // ========== 处理UI按钮点击 ==========
+        // 绘制底部状态栏
+        if (showSpheres)
+            DrawText((BottomText + AddText).c_str(), static_cast<int>(hudMargin), static_cast<int>(bottomY), bottomFont, WHITE);
+        else
+            DrawText((BottomText + "(Hidden)").c_str(), static_cast<int>(hudMargin), static_cast<int>(bottomY), bottomFont, WHITE);
+        // ========== 处理UI按钮点击 ==========
 
-            // 切换显示/隐藏球体
-            if (toggleButton.Draw())
-            {
-                showSpheres = !showSpheres;
-            }
-
-            // 切换到3D视图
-            if (dButton.Draw())
-            {
-                hlmode = vmode;  // 保存之前的高亮模式
-                vmode = 0;
-                camera.projection = CAMERA_PERSPECTIVE;
-                SphereRadius = 3.0f;
-                SphereDist = 10.0f;
-                AngleTheta = 45.0f;
-                AnglePhi = 45.0f;
-                cameraDist = 400.0f;
-            }
-
-            // 切换到X轴视图
-            if (xButton.Draw())
-            {
-                if (hlmode != 1)
-                    number = 0;  // 切换轴时重置平面选择
-                hlmode = 0;
-                vmode = 1;
-                camera.projection = CAMERA_ORTHOGRAPHIC;
-                SphereRadius = 2.5f;
-                SphereDist = 5.0f;
-                AngleTheta = 90.0f;
-                AnglePhi = 0.0f;
-                cameraDist = 400.0f;
-            }
-
-            // 切换到Y轴视图
-            if (yButton.Draw())
-            {
-                if (hlmode != 2)
-                    number = 0;
-                hlmode = 0;
-                vmode = 2;
-                camera.projection = CAMERA_ORTHOGRAPHIC;
-                SphereRadius = 2.5f;
-                SphereDist = 5.0f;
-                AngleTheta = 0.0f;
-                AnglePhi = 90.0f;
-                cameraDist = 400.0f;
-            }
-
-            // 切换到Z轴视图
-            if (zButton.Draw())
-            {
-                if (hlmode != 3)
-                    number = 0;
-                hlmode = 0;
-                vmode = 3;
-                camera.projection = CAMERA_ORTHOGRAPHIC;
-                SphereRadius = 2.5f;
-                SphereDist = 5.0f;
-                AngleTheta = 0.0f;
-                AnglePhi = 0.0f;
-                cameraDist = 400.0f;
-            }
-
-            // ===== 高亮按钮（仅在3D视图下显示） =====
-            if (vmode == 0)
-            {
-                if (HighlightButtonx.Draw())
-                {
-                    number = 0;
-                    hlmode = 1;  // 高亮Y-Z平面
-                }
-                if (HighlightButtony.Draw())
-                {
-                    number = 0;
-                    hlmode = 2;  // 高亮X-Z平面
-                }
-                if (HighlightButtonz.Draw())
-                {
-                    number = 0;
-                    hlmode = 3;  // 高亮X-Y平面
-                }
-            }
-
-            // ===== 数字按钮（选择平面编号） =====
-            if (hlmode != 0 || vmode != 0)
-            {
-                // Reset按钮：清除平面选择
-                if (NumberButton[0].Draw())
-                {
-                    hlmode = 0;
-                    number = 0;
-                }
-
-                // 1-9号按钮：选择对应平面
-                for (int i = 1; i <= BoardSize; ++i)
-                    if (NumberButton[i].Draw())
-                        number = i;
-            }
-
-            EndDrawing();
+        // 切换显示/隐藏球体
+        if (toggleButton.Draw())
+        {
+            showSpheres = !showSpheres;
         }
 
-        // ========== 退出处理 ==========
-        bool userClosedWindow = WindowShouldClose();
+        // 切换到3D视图
+        if (dButton.Draw())
+        {
+            hlmode = vmode;  // 保存之前的高亮模式
+            vmode = 0;
+            camera.projection = CAMERA_PERSPECTIVE;
+            SphereRadius = 3.0f;
+            SphereDist = 10.0f;
+            AngleTheta = 45.0f;
+            AnglePhi = 45.0f;
+            cameraDist = 400.0f;
+        }
 
-        return userClosedWindow ? -1 : 0;  // -1:关闭窗口, 0:正常退出
+        // 切换到X轴视图
+        if (xButton.Draw())
+        {
+            if (hlmode != 1)
+                number = 0;  // 切换轴时重置平面选择
+            hlmode = 0;
+            vmode = 1;
+            camera.projection = CAMERA_ORTHOGRAPHIC;
+            SphereRadius = 2.5f;
+            SphereDist = 5.0f;
+            AngleTheta = 90.0f;
+            AnglePhi = 0.0f;
+            cameraDist = 400.0f;
+        }
+
+        // 切换到Y轴视图
+        if (yButton.Draw())
+        {
+            if (hlmode != 2)
+                number = 0;
+            hlmode = 0;
+            vmode = 2;
+            camera.projection = CAMERA_ORTHOGRAPHIC;
+            SphereRadius = 2.5f;
+            SphereDist = 5.0f;
+            AngleTheta = 0.0f;
+            AnglePhi = 90.0f;
+            cameraDist = 400.0f;
+        }
+
+        // 切换到Z轴视图
+        if (zButton.Draw())
+        {
+            if (hlmode != 3)
+                number = 0;
+            hlmode = 0;
+            vmode = 3;
+            camera.projection = CAMERA_ORTHOGRAPHIC;
+            SphereRadius = 2.5f;
+            SphereDist = 5.0f;
+            AngleTheta = 0.0f;
+            AnglePhi = 0.0f;
+            cameraDist = 400.0f;
+        }
+
+        // ===== 高亮按钮（仅在3D视图下显示） =====
+        if (vmode == 0)
+        {
+            if (HighlightButtonx.Draw())
+            {
+                number = 0;
+                hlmode = 1;  // 高亮Y-Z平面
+            }
+            if (HighlightButtony.Draw())
+            {
+                number = 0;
+                hlmode = 2;  // 高亮X-Z平面
+            }
+            if (HighlightButtonz.Draw())
+            {
+                number = 0;
+                hlmode = 3;  // 高亮X-Y平面
+            }
+        }
+
+        // ===== 数字按钮（选择平面编号） =====
+        if (hlmode != 0 || vmode != 0)
+        {
+            // Reset按钮：清除平面选择
+            if (NumberButton[0].Draw())
+            {
+                hlmode = 0;
+                number = 0;
+            }
+
+            // 1-9号按钮：选择对应平面
+            for (int i = 1; i <= BoardSize; ++i)
+                if (NumberButton[i].Draw())
+                    number = i;
+        }
+
+        EndDrawing();
     }
+
+    // ========== 退出处理 ==========
+    bool userClosedWindow = WindowShouldClose();
+
+    return userClosedWindow ? -1 : 0;  // -1:关闭窗口, 0:正常退出
 }
