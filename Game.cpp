@@ -729,7 +729,7 @@ int RunGame(Client *client)
             if (client->isMyTurn())
                 DrawText("Your Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, GREEN);
             else
-                DrawText("Opponent's Turn", 1650, 60, 20, ORANGE);
+                DrawText("Opponent's Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, ORANGE);
             
             // 显示最近一次同步的时间（秒）
             auto timeSinceSync = client->getTimeSinceLastSync();
@@ -737,7 +737,7 @@ int RunGame(Client *client)
             
             // 根据同步时间设置颜色（<6s:绿, <10s:黄, >=10s:红）
             Color syncColor = (timeSinceSync < 6) ? GREEN : (timeSinceSync < 10 ? YELLOW : RED);
-            DrawText(syncText.c_str(), 1650, 90, 16, syncColor);
+            DrawText(syncText.c_str(), static_cast<int>(turnTextX), static_cast<int>(turnTextY)+60, turnFont-10, syncColor);
         }
         else
         {
@@ -746,7 +746,7 @@ int RunGame(Client *client)
                 DrawText("BLUE's Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, WHITE);
             else
                 DrawText("RED's Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, WHITE);
-        }
+        
 
         float stepX = screenWidth - hudMargin - stepFont * 1.5f;
         float stepY = screenHeight - hudMargin - stepFont * 1.5f;
