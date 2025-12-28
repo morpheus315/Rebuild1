@@ -722,7 +722,7 @@ int RunGame(Client* client)
                 rlEnableDepthMask();
             }
 
-            // 同方相邻棋子连线（仅3D视图，使用细圆柱，含斜向邻接）
+            // 同方相邻棋子连线（仅3D视图，使用细圆柱，含斜向邻接，且仅当连续>=3）
             if (vmode == 0 && showSpheres)
             {
                 const float lineRadius = SphereRadius * 0.12f;
@@ -733,31 +733,51 @@ int RunGame(Client* client)
                             int colorId = ColorBoard[i][j][k];
                             if (colorId == 0) continue;
 
-                            Vector3 posA{ SphereDist * i - posDelta,
-                                          SphereDist * j - posDelta,
-                                          SphereDist * k - posDelta };
-                            Color lineColor = typeColor[colorId];
-                            lineColor.a = 200;
-
+                            // 遍历唯一方向（正半空间），检查是否为该方向连线的起点
                             for (int dx = -1; dx <= 1; ++dx)
                                 for (int dy = -1; dy <= 1; ++dy)
                                     for (int dz = -1; dz <= 1; ++dz)
                                     {
                                         if (dx == 0 && dy == 0 && dz == 0) continue;
-                                        // 只连向正方向避免重复
                                         if (dx < 0) continue;
                                         if (dx == 0 && dy < 0) continue;
                                         if (dx == 0 && dy == 0 && dz < 0) continue;
 
-                                        int ni = i + dx, nj = j + dy, nk = k + dz;
-                                        if (ni < 1 || ni > BoardSize || nj < 1 || nj > BoardSize || nk < 1 || nk > BoardSize)
-                                            continue;
-                                        if (ColorBoard[ni][nj][nk] != colorId) continue;
+                                        int prevI = i - dx, prevJ = j - dy, prevK = k - dz;
+                                        if (prevI >= 1 && prevI <= BoardSize && prevJ >= 1 && prevJ <= BoardSize && prevK >= 1 && prevK <= BoardSize)
+                                        {
+                                            if (ColorBoard[prevI][prevJ][prevK] == colorId)
+                                                continue; // 不是链条起点
+                                        }
 
-                                        Vector3 posB{ SphereDist * ni - posDelta,
-                                                      SphereDist * nj - posDelta,
-                                                      SphereDist * nk - posDelta };
-                                        DrawCylinderEx(posA, posB, lineRadius, lineRadius, 8, lineColor);
+                                        // 前向统计长度
+                                        int len = 1;
+                                        int ni = i + dx, nj = j + dy, nk = k + dz;
+                                        while (ni >= 1 && ni <= BoardSize && nj >= 1 && nj <= BoardSize && nk >= 1 && nk <= BoardSize && ColorBoard[ni][nj][nk] == colorId)
+                                        {
+                                            ++len;
+                                            ni += dx; nj += dy; nk += dz;
+                                        }
+
+                                        if (len < 3) continue; // 少于3个不连线
+
+                                        // 绘制链条圆柱
+                                        Vector3 posA{ SphereDist * i - posDelta,
+                                                      SphereDist * j - posDelta,
+                                                      SphereDist * k - posDelta };
+                                        Color lineColor = typeColor[colorId];
+                                        lineColor.a = 200;
+										double ThicknessFactor = (len==3)?0.15:0.3;
+                                        ni = i + dx; nj = j + dy; nk = k + dz;
+                                        for (int step = 1; step < len; ++step)
+                                        {
+                                            Vector3 posB{ SphereDist * ni - posDelta,
+                                                          SphereDist * nj - posDelta,
+                                                          SphereDist * nk - posDelta };
+                                            DrawCylinderEx(posA, posB, ThicknessFactor* SphereRadius, ThicknessFactor * SphereRadius, 8, lineColor);
+                                            posA = posB;
+                                            ni += dx; nj += dy; nk += dz;
+                                        }
                                     }
                         }
             }
