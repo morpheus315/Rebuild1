@@ -785,50 +785,12 @@ int RunGame(Client* client)
             else
                 DrawText("Opponent's Turn", static_cast<int>(turnTextX), static_cast<int>(turnTextY), turnFont, ORANGE);
 
-            // 显示最近一次同步的时间和状态
+            // 显示最近一次同步的时间（秒）
             auto timeSinceSync = client->getTimeSinceLastSync();
-            bool syncSuccess = true;
-            std::string syncError;
-            client->getLastSyncStatus(syncSuccess, syncError);
-            
-            // 构造同步状态文本
-            std::string syncText = "Sync: ";
-            if (client->isSyncing())
-            {
-                syncText += "Syncing...";
-            }
-            else if (syncSuccess)
-            {
-                syncText += "OK (" + std::to_string(timeSinceSync) + "s ago)";
-            }
-            else
-            {
-                syncText += "FAILED - " + syncError;
-            }
-            
-            // 根据状态设置颜色
-            Color syncColor;
-            if (client->isSyncing())
-            {
-                syncColor = SKYBLUE;  // 正在同步：天蓝色
-            }
-            else if (!syncSuccess)
-            {
-                syncColor = RED;  // 同步失败：红色
-            }
-            else if (timeSinceSync < 6)
-            {
-                syncColor = GREEN;  // 最近同步成功：绿色
-            }
-            else if (timeSinceSync < 10)
-            {
-                syncColor = YELLOW;  // 稍久未同步：黄色
-            }
-            else
-            {
-                syncColor = ORANGE;  // 很久未同步：橙色
-            }
-            
+            std::string syncText = "Last Sync: " + std::to_string(timeSinceSync) + "s ago";
+
+            // 根据同步时间设置颜色（<6s:绿, <10s:黄, >=10s:红）
+            Color syncColor = (timeSinceSync < 6) ? GREEN : (timeSinceSync < 10 ? YELLOW : RED);
             DrawText(syncText.c_str(), static_cast<int>(turnTextX), static_cast<int>(turnTextY) + 60, turnFont - 10, syncColor);
         }
         else

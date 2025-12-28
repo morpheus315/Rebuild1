@@ -477,7 +477,7 @@ void Client::stopTimeoutThread()
 /**
  * @brief 同步线程循环
  * 
- * 每5秒向对方发送一次完整的棋盘状态，防止丢包或棋盘不同步
+ * 每5秒向对手发送一次完整的棋盘状态，防止因网络丢包导致不同步
  */
 void Client::syncThreadLoop()
 {
@@ -507,22 +507,8 @@ void Client::syncThreadLoop()
 					opponent = _match.peer;
 				}
 				
-				// 发送棋盘状态给对方
-				bool sendSuccess = _node.sendBoardState(opponent.ip, opponent.tcpPort, boardState);
-				
-				// 更新同步状态
-				{
-					std::lock_guard<std::mutex> lk(_syncStatusMutex);
-					_lastSyncSuccess = sendSuccess;
-					if (!sendSuccess)
-					{
-						_lastSyncError = "Network send failed (connection timeout or refused)";
-					}
-					else
-					{
-						_lastSyncError.clear();
-					}
-				}
+				// 发送棋盘状态给对手
+				_node.sendBoardState(opponent.ip, opponent.tcpPort, boardState);
 				
 				_lastSyncTime = now;
 				_isSyncing = false;
@@ -726,18 +712,5 @@ int Client::getTimeSinceLastSync() const
 	auto now = std::chrono::steady_clock::now();
 	auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - _lastSyncTime);
 	return static_cast<int>(elapsed.count());
-}
-
-/**
- * @brief 获取最后一次同步的状态信息
- * 
- * @param outSuccess 输出参数：是否成功
- * @param outError 输出参数：错误信息（如果失败）
- */
-void Client::getLastSyncStatus(bool& outSuccess, std::string& outError) const
-{
-	std::lock_guard<std::mutex> lk(_syncStatusMutex);
-	outSuccess = _lastSyncSuccess;
-	outError = _lastSyncError;
 }
 
