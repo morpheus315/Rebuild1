@@ -224,6 +224,11 @@ class Client
 		std::chrono::steady_clock::time_point _lastSyncTime;  // 上次同步时间
 		std::thread _syncThread;                       // 同步线程
 		std::atomic<bool> _syncThreadRunning{ false }; // 同步线程运行标志
+		
+		// 同步状态跟踪
+		mutable std::mutex _syncStatusMutex;           // 同步状态互斥锁
+		bool _lastSyncSuccess{ true };                 // 上次同步是否成功
+		std::string _lastSyncError;                    // 上次同步错误信息
 
 		// ========== 网络回调函数 ==========
 		
@@ -307,4 +312,11 @@ class Client
 		 * @return true 正在同步，false 未同步
 		 */
 		bool isSyncing() const { return _isSyncing.load(); }
+		
+		/**
+		 * @brief 获取最后一次同步的状态信息
+		 * @param outSuccess 输出参数：是否成功
+		 * @param outError 输出参数：错误信息（如果失败）
+		 */
+		void getLastSyncStatus(bool& outSuccess, std::string& outError) const;
 };
